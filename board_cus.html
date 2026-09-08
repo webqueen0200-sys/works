@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>U+공식온라인스토어 운영 대시보드 — 디지털사업</title>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" rel="stylesheet">
+<style>
+  :root{
+    --bg:#F5F5F7;
+    --panel:#FFFFFF;
+    --ink:#1D1D1F;
+    --ink-soft:#6E6E73;
+    --mute:#AEAEB4;
+    --line:#EDEDF0;
+
+    --blue:#5B8DEF;      --blue-soft:#EAF1FE;
+    --green:#4FC793;     --green-soft:#E7F9F1;
+    --amber:#F5B84E;     --amber-soft:#FEF4E4;
+    --red:#F17C77;       --red-soft:#FDECEB;
+    --purple:#A78BE0;    --purple-soft:#F2EEFB;
+    --pink:#EC9BC0;      --pink-soft:#FCEEF4;
+    --gray:#C7C7CC;      --gray-soft:#F1F1F3;
+
+    --radius:22px;
+    --shadow:0 1px 2px rgba(0,0,0,.03), 0 10px 28px rgba(0,0,0,.045);
+    --sans:'Pretendard',-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:var(--sans);
+    background:var(--bg);
+    color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+    font-feature-settings:"tnum";
+  }
+  .wrap{max-width:1120px;margin:0 auto;padding:56px 28px 90px;}
+
+  /* ===== Data source panel ===== */
+  .ds-head{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;flex-wrap:wrap;margin-bottom:18px;}
+  .ds-toggle{display:flex;background:var(--gray-soft);border-radius:12px;padding:4px;flex-shrink:0;}
+  .ds-tab{
+    border:none;background:transparent;padding:8px 16px;border-radius:9px;font-size:12.5px;font-weight:600;
+    color:var(--ink-soft);cursor:pointer;font-family:var(--sans);transition:background .15s,color .15s;
+  }
+  .ds-tab.active{background:var(--panel);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.08);}
+  .ds-body{margin-top:4px;}
+  .ds-drop{
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+    border:1.5px dashed var(--line);border-radius:16px;padding:28px 20px;cursor:pointer;
+    background:var(--bg);text-align:center;transition:border-color .15s,background .15s;
+  }
+  .ds-drop:hover{border-color:var(--blue);background:var(--blue-soft);}
+  .ds-drop-title{font-size:13.5px;font-weight:600;color:var(--ink);}
+  .ds-drop-sub{font-size:11.5px;color:var(--mute);font-weight:500;}
+  .ds-url-row{display:flex;gap:10px;}
+  .ds-url-row input{
+    flex:1;border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:13px;
+    font-family:var(--sans);color:var(--ink);background:var(--bg);
+  }
+  .ds-url-row input:focus{outline:none;border-color:var(--blue);}
+  .ds-btn{
+    border:none;background:var(--ink);color:#fff;padding:0 22px;border-radius:12px;font-size:13px;
+    font-weight:600;cursor:pointer;font-family:var(--sans);
+  }
+  .ds-btn:hover{opacity:.85;}
+  #data-status.ds-ok{color:var(--green);}
+  #data-status.ds-err{color:var(--red);}
+
+  /* ===== Header ===== */
+  header{
+    display:flex;justify-content:space-between;align-items:flex-end;
+    gap:24px;flex-wrap:wrap;margin-bottom:36px;
+  }
+  .eyebrow{
+    font-size:13px;font-weight:600;color:var(--blue);letter-spacing:.01em;margin-bottom:10px;
+  }
+  h1{font-size:32px;line-height:1.28;margin:0;font-weight:700;letter-spacing:-.02em;color:var(--ink);}
+  .sub{color:var(--ink-soft);font-size:14.5px;margin-top:10px;max-width:520px;line-height:1.6;font-weight:400;}
+  .meta-badge{text-align:right;}
+  .meta-badge .date{font-size:20px;font-weight:600;color:var(--ink);}
+  .meta-badge .cycle{font-size:12.5px;color:var(--mute);margin-top:5px;font-weight:500;}
+
+  /* ===== Section headings ===== */
+  .sec-head{display:flex;align-items:baseline;gap:10px;margin:56px 0 18px;}
+  .sec-head h2{font-size:19px;margin:0;font-weight:700;letter-spacing:-.01em;}
+  .sec-head .desc{color:var(--mute);font-size:12.5px;margin-left:auto;font-weight:500;}
+
+  /* ===== Panels (base) ===== */
+  .panel{
+    background:var(--panel);border-radius:var(--radius);
+    padding:26px 28px;box-shadow:var(--shadow);
+  }
+  .panel h3{font-size:15px;margin:0 0 4px;font-weight:700;}
+  .panel .hint{font-size:12px;color:var(--mute);margin-bottom:20px;font-weight:500;}
+
+  /* ===== Hero KPI strip ===== */
+  .hero{
+    display:grid;grid-template-columns:repeat(4,1fr);gap:16px;
+  }
+  .kpi{
+    background:var(--panel);border-radius:var(--radius);padding:22px 22px 20px;
+    box-shadow:var(--shadow);
+  }
+  .kpi .dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-bottom:14px;}
+  .kpi .label{font-size:12.5px;color:var(--ink-soft);margin-bottom:6px;font-weight:600;}
+  .kpi .num{font-size:32px;font-weight:700;letter-spacing:-.02em;color:var(--ink);}
+  .kpi .num small{font-size:14px;font-weight:500;color:var(--mute);margin-left:2px;}
+  .kpi .delta{font-size:11.5px;margin-top:8px;color:var(--mute);font-weight:500;line-height:1.5;}
+
+  .stackbar{height:8px;border-radius:8px;overflow:hidden;display:flex;margin-top:22px;background:var(--gray-soft);}
+  .stackbar div{height:100%;}
+  .stack-legend{display:flex;gap:20px;margin-top:12px;flex-wrap:wrap;font-size:12px;color:var(--ink-soft);font-weight:500;}
+  .stack-legend span{display:inline-flex;align-items:center;gap:7px;}
+  .dot{width:8px;height:8px;border-radius:50%;display:inline-block;}
+
+  /* ===== Grid layout ===== */
+  .grid2{display:grid;grid-template-columns:1.25fr 1fr;gap:16px;}
+
+  /* ===== Capacity meters ===== */
+  .meter-row{display:flex;align-items:center;gap:14px;margin-bottom:17px;}
+  .meter-row:last-child{margin-bottom:0;}
+  .meter-role{width:58px;flex-shrink:0;font-size:13px;font-weight:600;color:var(--ink);}
+  .meter-track{
+    position:relative;flex:1;height:10px;background:var(--gray-soft);border-radius:10px;overflow:visible;
+  }
+  .meter-fill{position:absolute;left:0;top:0;bottom:0;border-radius:10px;}
+  .meter-track .tick{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--mute);border-radius:2px;}
+  .meter-val{width:100px;text-align:right;font-size:13px;font-weight:700;color:var(--ink);flex-shrink:0;}
+  .meter-val small{color:var(--mute);font-weight:500;display:block;font-size:10.5px;margin-top:1px;}
+  .cap-total{
+    margin-top:20px;padding-top:18px;border-top:1px solid var(--line);
+    display:flex;justify-content:space-between;align-items:center;
+  }
+  .cap-total .t-label{font-size:13px;font-weight:600;color:var(--ink-soft);}
+  .cap-total .t-val{font-size:22px;font-weight:700;color:var(--blue);}
+
+  /* ===== Staff bars ===== */
+  .staff-row{display:flex;align-items:center;gap:12px;margin-bottom:13px;}
+  .staff-name{width:58px;font-size:13px;color:var(--ink-soft);flex-shrink:0;font-weight:500;}
+  .staff-track{flex:1;height:8px;background:var(--gray-soft);border-radius:8px;overflow:hidden;}
+  .staff-fill{height:100%;background:var(--purple);border-radius:8px;}
+  .staff-val{width:18px;text-align:right;font-size:13px;font-weight:700;color:var(--ink);}
+
+  /* ===== Category cards ===== */
+  .cat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;}
+  .cat-card{border-radius:var(--radius);padding:20px 20px 18px;background:var(--panel);box-shadow:var(--shadow);}
+  .cat-card .cat-name{font-size:13px;font-weight:600;color:var(--ink-soft);margin-bottom:6px;}
+  .cat-card .cat-total{font-size:28px;font-weight:700;margin-bottom:12px;color:var(--ink);}
+  .cat-card .cat-total small{font-size:13px;color:var(--mute);font-weight:500;}
+  .cat-mini{height:6px;border-radius:6px;overflow:hidden;display:flex;margin-bottom:10px;background:var(--gray-soft);}
+  .cat-mini div{height:100%;}
+  .cat-breakdown{font-size:11.5px;color:var(--mute);line-height:1.7;font-weight:500;}
+  .cat-breakdown b{color:var(--ink-soft);font-weight:700;}
+  .si-note{
+    grid-column:1/-1;font-size:12px;color:var(--ink-soft);font-weight:500;
+    background:var(--panel);border-radius:var(--radius);padding:16px 20px;box-shadow:var(--shadow);
+  }
+
+  /* ===== Requester stacked rows ===== */
+  .req-row{display:flex;align-items:center;gap:12px;margin-bottom:14px;}
+  .req-row:last-child{margin-bottom:0;}
+  .req-label{width:180px;flex-shrink:0;font-size:12.5px;color:var(--ink-soft);font-weight:600;
+    overflow:hidden;}
+  .req-label-main{color:var(--ink);font-weight:700;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .req-label-sub{color:var(--mute);font-weight:500;font-size:10.5px;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .req-track{flex:1;height:12px;background:var(--gray-soft);border-radius:8px;overflow:hidden;display:flex;}
+  .req-track div{height:100%;}
+  .req-val{width:180px;text-align:right;font-size:11.5px;color:var(--mute);font-weight:500;flex-shrink:0;}
+  .req-val b{color:var(--ink);font-weight:700;}
+  .req-legend{display:flex;gap:18px;margin-top:18px;padding-top:16px;border-top:1px solid var(--line);
+    font-size:12px;color:var(--ink-soft);font-weight:500;}
+  .req-legend span{display:inline-flex;align-items:center;gap:7px;}
+  .req-etc-note{font-size:11px;color:var(--mute);margin-top:14px;font-weight:500;}
+
+  /* ===== Risk cards ===== */
+  .risk-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
+  .risk-card{border-radius:var(--radius);padding:22px 22px 20px;background:var(--panel);box-shadow:var(--shadow);}
+  .risk-card .tag{
+    display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:700;
+    padding:5px 12px;border-radius:20px;margin-bottom:14px;
+  }
+  .risk-card .tag .dot{width:6px;height:6px;}
+  .risk-card .count{font-size:28px;font-weight:700;margin-bottom:12px;color:var(--ink);}
+  .risk-card .count small{font-size:13px;color:var(--mute);font-weight:500;}
+  .risk-card ul{margin:0;padding-left:16px;font-size:12.5px;color:var(--ink-soft);line-height:1.75;font-weight:500;}
+  .risk-card p.cause{font-size:11.5px;color:var(--mute);margin:12px 0 0;font-weight:500;}
+  .risk-red .tag{background:var(--red-soft);color:var(--red);}
+  .risk-amber .tag{background:var(--amber-soft);color:#B87F1E;}
+  .risk-blue .tag{background:var(--blue-soft);color:var(--blue);}
+
+  /* ===== Task table ===== */
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  thead th{
+    text-align:left;font-size:11.5px;color:var(--mute);font-weight:700;
+    padding:0 12px 12px;border-bottom:1px solid var(--line);
+  }
+  tbody td{padding:13px 12px;border-bottom:1px solid var(--line);vertical-align:top;}
+  tbody tr:last-child td{border-bottom:none;}
+  .cell-cat{white-space:nowrap;}
+  .cell-cat .main{font-weight:600;color:var(--ink);}
+  .cell-cat .sub{color:var(--mute);font-size:11.5px;font-weight:500;}
+  .cell-name{max-width:360px;color:var(--ink-soft);font-weight:500;}
+  .cell-name .star{color:var(--pink);font-weight:700;font-size:11px;margin-left:4px;}
+  .pill{
+    display:inline-block;font-size:11px;font-weight:700;padding:4px 11px;border-radius:20px;
+    white-space:nowrap;
+  }
+  .pill-red{background:var(--red-soft);color:var(--red);}
+  .pill-amber{background:var(--amber-soft);color:#B87F1E;}
+  .pill-blue{background:var(--blue-soft);color:var(--blue);}
+  .pill-gray{background:var(--gray-soft);color:var(--ink-soft);}
+  .pill-pink{background:var(--pink-soft);color:#C0568C;}
+  .cell-date{white-space:nowrap;font-weight:600;color:var(--ink-soft);}
+  .cell-date .overdue{color:var(--red);}
+
+  /* ===== Footer / capacity choices ===== */
+  .choice-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:0;}
+  .choice-card{
+    border-radius:var(--radius);padding:22px;background:var(--panel);box-shadow:var(--shadow);
+  }
+  .choice-card .num{font-weight:700;font-size:13px;margin-bottom:10px;color:var(--blue);}
+  .choice-card h4{font-size:14.5px;margin:0 0 8px;font-weight:700;color:var(--ink);}
+  .choice-card p{font-size:12.5px;color:var(--ink-soft);margin:0;line-height:1.65;font-weight:500;}
+  .choice-card.selected{box-shadow:var(--shadow), inset 0 0 0 2px var(--blue-soft);}
+  .choice-card.selected .num::after{content:" · 현재 방침";color:var(--blue);font-weight:700;}
+
+  .ask-panel{
+    margin-top:16px;background:var(--panel);border-radius:var(--radius);padding:24px 28px;
+    display:flex;justify-content:space-between;gap:24px;align-items:center;flex-wrap:wrap;
+    box-shadow:var(--shadow);
+  }
+  .ask-panel h4{margin:0 0 6px;font-size:14.5px;font-weight:700;color:var(--ink);}
+  .ask-panel p{margin:0;font-size:12.5px;color:var(--ink-soft);max-width:640px;line-height:1.65;font-weight:500;}
+  .ask-panel .badge{
+    font-size:12px;background:var(--blue-soft);color:var(--blue);padding:8px 16px;border-radius:20px;
+    flex-shrink:0;font-weight:700;
+  }
+
+  footer.page-foot{
+    margin-top:48px;text-align:center;color:var(--mute);font-size:11.5px;font-weight:500;
+  }
+
+  @media(max-width:860px){
+    .grid2{grid-template-columns:1fr;}
+    .cat-grid{grid-template-columns:repeat(2,1fr);}
+    .risk-grid{grid-template-columns:1fr;}
+    .choice-grid{grid-template-columns:1fr;}
+    .hero{grid-template-columns:repeat(2,1fr);}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div>
+      <div class="eyebrow">WEEKLY OPS DASHBOARD</div>
+      <h1>U+공식온라인스토어 운영 대시보드</h1>
+      <div class="sub" id="header-sub">시트에 등장하는 담당자 수를 기준으로 투입 인력 Capacity를 자동 산정해, 이번 달 처리 현황과 다음 주 처리 계획을 정리했습니다.</div>
+    </div>
+    <div class="meta-badge">
+      <div class="date" id="meta-date">–</div>
+      <div class="cycle" id="meta-cycle">시트 연동 대기 중</div>
+    </div>
+  </header>
+
+  <!-- DATA SOURCE -->
+  <div class="panel" id="data-source-panel">
+    <div class="ds-head">
+      <div>
+        <h3 style="margin-bottom:6px;">원본 데이터 연동</h3>
+        <div class="hint" style="margin-bottom:0;" id="data-status">구글시트를 불러오는 중…</div>
+      </div>
+      <div class="ds-toggle">
+        <button type="button" class="ds-tab" id="tab-excel" onclick="dsSwitchTab('excel')">엑셀 파일</button>
+        <button type="button" class="ds-tab active" id="tab-url" onclick="dsSwitchTab('url')">구글시트 URL</button>
+      </div>
+    </div>
+
+    <div class="ds-body" id="ds-body-excel" style="display:none;">
+      <label class="ds-drop" for="ds-file-input">
+        <span class="ds-drop-title">엑셀 파일 선택 또는 여기로 드래그</span>
+        <span class="ds-drop-sub">.xlsx / .xls · '업무(JIRA 접수)명 · 진행 현황'과 같은 컬럼 구성을 기대합니다</span>
+      </label>
+      <input type="file" id="ds-file-input" accept=".xlsx,.xls" style="display:none;">
+    </div>
+
+    <div class="ds-body" id="ds-body-url">
+      <div class="ds-url-row">
+        <input type="text" id="ds-url-input" placeholder="https://docs.google.com/spreadsheets/d/…/edit?gid=…" value="https://docs.google.com/spreadsheets/d/15i2xu3VT4ubrZEnyPD_dIRAycs0bCTMpcmhu9lNzHZ0/edit?gid=13121493">
+        <button type="button" class="ds-btn" onclick="dsLoadFromUrl()">불러오기</button>
+      </div>
+      <div class="ds-drop-sub" style="margin-top:8px;">시트가 "링크가 있는 모든 사용자 - 뷰어" 이상으로 공유되어 있어야 불러올 수 있습니다 · 페이지를 열면 자동으로 위 시트를 불러옵니다</div>
+    </div>
+  </div>
+
+  <!-- HERO KPI -->
+  <div class="hero" id="hero-kpis"></div>
+  <div class="panel" style="margin-top:16px;padding:22px 28px;">
+    <div class="stackbar" id="hero-stackbar"></div>
+    <div class="stack-legend" id="hero-legend"></div>
+  </div>
+
+  <!-- CATEGORY -->
+  <div class="sec-head">
+    <h2>업무 분류별 처리 현황</h2>
+    <span class="desc" id="cat-desc">대분류 기준 · 건수 많은 순</span>
+  </div>
+  <div class="cat-grid" id="cat-cards">
+    <div class="hint">시트를 불러오면 대분류별 현황이 표시됩니다.</div>
+  </div>
+
+  <!-- REQUEST SOURCE -->
+  <div class="sec-head">
+    <h2>요청 출처별 진행/완료 현황</h2>
+    <span class="desc" id="reqsrc-desc">요청팀·요청자 기준</span>
+  </div>
+  <div class="panel">
+    <h3>요청팀 · 요청자별 현황</h3>
+    <div class="hint">업무를 접수한 사업부서와 실무 담당자를 함께 표기합니다</div>
+
+    <div id="reqsrc-rows">
+    <div class="hint">시트를 불러오면 요청팀·요청자별 현황이 표시됩니다.</div>
+    </div>
+
+    <div class="req-etc-note" id="reqsrc-etc"></div>
+
+    <div class="req-legend">
+      <span><i class="dot" style="background:var(--blue);"></i>완료</span>
+      <span><i class="dot" style="background:var(--green);"></i>진행</span>
+      <span><i class="dot" style="background:var(--amber);"></i>기타(예정·대기·보류)</span>
+    </div>
+  </div>
+
+  <!-- RISK -->
+  <div class="sec-head">
+    <h2>이번 주 신호등</h2>
+    <span class="desc">일정 지연 원인을 내부/외부로 구분해 표시합니다</span>
+  </div>
+  <div class="risk-grid" id="risk-cards">
+    <div class="hint">시트를 불러오면 신호등이 표시됩니다.</div>
+  </div>
+
+  <!-- CAPACITY + STAFF -->
+  <div class="sec-head">
+    <h2>투입 현황 — 인력 Capacity 대비 실제 투입</h2>
+    <span class="desc" id="cap-desc">역할별 등장 담당자 수 기준 Capacity 대비 실제 투입 MM</span>
+  </div>
+  <div class="grid2">
+    <div class="panel">
+      <h3>직무별 투입률</h3>
+      <div class="hint">기준선(점선)은 시트에 등장하는 담당자 수 기준 최대 처리 가능량입니다.</div>
+
+      <div id="capacity-meters">
+      <div class="hint">시트를 불러오면 직무별 투입률이 표시됩니다.</div>
+      </div>
+
+      <div class="cap-total">
+        <div class="t-label">전체 투입률 (<span id="cap-total-mm">– / –</span> MM)</div>
+        <div class="t-val" id="cap-total-pct">–</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>담당자별 배정 현황</h3>
+      <div class="hint" id="staff-hint">시트에 등장하는 담당자 기준</div>
+
+      <div id="staff-bars">
+      <div class="hint">시트를 불러오면 담당자별 배정 현황이 표시됩니다.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TABLE -->
+  <div class="sec-head">
+    <h2>진행 중 업무 상세 (<span id="task-count">0</span>건)</h2>
+    <span class="desc">완료예정일 오름차순 · <span style="color:var(--pink);font-weight:700;">★</span> 우선순위 중요 이상</span>
+  </div>
+  <div class="panel" style="padding:8px 22px 4px;">
+    <table>
+      <thead>
+        <tr><th>분류</th><th>업무명</th><th>상태</th><th>완료예정일</th></tr>
+      </thead>
+      <tbody id="task-tbody">
+        <tr><td colspan="4" class="hint" style="padding:20px 12px;">시트를 불러오면 진행 중 업무 목록이 표시됩니다.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- FOOTER / DECISION -->
+  <div class="sec-head">
+    <h2>운영 방향</h2>
+    <span class="desc">현재 인력 기준으로 관리 중인 세 가지 선택지</span>
+  </div>
+  <div class="choice-grid">
+    <div class="choice-card selected">
+      <div class="num">① 인력 유지</div>
+      <h4>우선순위 기준 순차 완료</h4>
+      <p id="choice1-p">현재 인력으로 중요도·긴급도 순 처리하고 있으며, 다음 주도 동일 체계를 유지할 예정입니다.</p>
+    </div>
+    <div class="choice-card">
+      <div class="num">② 일정 유지 + 전체 동시 진행</div>
+      <h4>추가 인력 필요</h4>
+      <p id="choice2-p">대기 중인 업무를 포함해 전체를 동시에 진행하려면 병목 직무 위주 증원이 필요합니다.</p>
+    </div>
+    <div class="choice-card">
+      <div class="num">③ 인력 유지 + 전체 완료</div>
+      <h4>일정 조정 필요</h4>
+      <p id="choice3-p">현 인력으로 전체 완료를 목표로 한다면, 마감이 임박한 업무 이후 항목의 착수 시점을 순연할 필요가 있습니다.</p>
+    </div>
+  </div>
+
+  <div class="ask-panel">
+    <div>
+      <h4>클라이언트 협조 요청</h4>
+      <p id="ask-panel-p">자료·의사결정 대기 중인 업무는 배포 일정 확정 및 회신이 필요합니다. 원활한 일정 준수를 위해 자료·검토 의견을 우선순위에 따라 순차 전달 부탁드립니다.</p>
+    </div>
+    <div class="badge" id="ask-panel-badge">다음 주 예상 처리량 산정 중</div>
+  </div>
+
+  <footer class="page-foot" id="page-foot">U+공식온라인스토어 운영_디지털사업 관리용 시트 기준 · 매주 수요일 업데이트</footer>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+/* =========================================================
+   원본 데이터 연동 — 엑셀 업로드 또는 구글시트 URL
+   ========================================================= */
+
+const WORK_HOURS_PER_MM = 160; // 일 8h × 주 40h × 월 160h
+const ROLE_COLOR = { '기획':'var(--blue)', '디자인':'var(--purple)', '퍼블':'var(--green)', 'GA':'var(--amber)', 'PM':'var(--pink)' };
+// Capacity 기준(역할별 인원)은 시트에 실제 등장하는 담당자 수를 세어 자동 산정합니다(1인 = 월 160H = 1.0MM 기준).
+
+function dsSwitchTab(which){
+  document.getElementById('tab-excel').classList.toggle('active', which==='excel');
+  document.getElementById('tab-url').classList.toggle('active', which==='url');
+  document.getElementById('ds-body-excel').style.display = which==='excel' ? '' : 'none';
+  document.getElementById('ds-body-url').style.display = which==='url' ? '' : 'none';
+}
+
+function setStatus(msg, kind){
+  const el = document.getElementById('data-status');
+  el.textContent = msg;
+  el.className = kind === 'ok' ? 'ds-ok' : (kind === 'err' ? 'ds-err' : '');
+}
+
+/* ---------- header normalization & column mapping ---------- */
+function normHeader(h){
+  return (h===undefined||h===null?'':String(h)).trim().replace(/\s+/g,'').replace(/[()]/g,'').toLowerCase();
+}
+const HEADER_ALIASES = {
+  no: ['no'],
+  jira: ['jira'],
+  대분류: ['대분류'],
+  중분류: ['중분류'],
+  요청구분: ['요청구분'],
+  중요도: ['중요도'],
+  업무명: ['업무jira접수명','업무명'],
+  요청팀: ['요청팀u+','요청팀'],
+  요청자: ['요청자u+','요청자'],
+  접수자: ['접수자ml','접수자'],
+  기획: ['기획'],
+  디자인: ['디자인'],
+  퍼블: ['퍼블'],
+  개발: ['개발'],
+  ga: ['ga'],
+  접수일: ['접수일'],
+  시작일: ['시작일'],
+  완료예정일: ['완료예정일'],
+  완료일: ['완료일'],
+  진행현황: ['진행현황'],
+  기획h: ['기획h'],
+  디자인h: ['디자인h'],
+  퍼블h: ['퍼블h'],
+  gah: ['gah'],
+  pmh: ['pmh'],
+  총합h: ['총합h'],
+  총합mm: ['총합mm']
+};
+const 업무명_ALIASES = HEADER_ALIASES.업무명;
+
+function findHeaderRowAndMap(aoa){
+  for(let i=0;i<aoa.length;i++){
+    const row = aoa[i];
+    if(!row) continue;
+    const normed = row.map(normHeader);
+    const hasName = 업무명_ALIASES.some(a=>normed.includes(a));
+    if(hasName && normed.includes('진행현황')){
+      const colIndex = {};
+      for(const key in HEADER_ALIASES){
+        let idx = -1;
+        for(const alias of HEADER_ALIASES[key]){
+          idx = normed.indexOf(alias);
+          if(idx !== -1) break;
+        }
+        colIndex[key] = idx;
+      }
+      return { headerRowIdx: i, colIndex };
+    }
+  }
+  return null;
+}
+
+function cellStr(row, idx){
+  if(idx===undefined || idx<0 || idx>=row.length) return '';
+  const v = row[idx];
+  return (v===undefined||v===null) ? '' : String(v).trim();
+}
+function cellName(row, idx){
+  const v = cellStr(row, idx);
+  return (v==='-' || v==='ー' || v==='–') ? '' : v; // '-' 등은 담당자 미지정 표시로 간주
+}
+function cellNum(row, idx){
+  const s = cellStr(row, idx).replace(/,/g,'');
+  const n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
+}
+
+function parseDate(str, refYear){
+  if(!str) return null;
+  str = String(str).trim();
+  let m;
+  if((m = str.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/))){
+    return new Date(+m[1], +m[2]-1, +m[3]);
+  }
+  if((m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/))){
+    return new Date(+m[3], +m[1]-1, +m[2]);
+  }
+  if((m = str.match(/^(\d{1,2})\/(\d{1,2})$/))){
+    return new Date(refYear, +m[1]-1, +m[2]);
+  }
+  const d = new Date(str);
+  return isNaN(d.getTime()) ? null : d;
+}
+function fmtMD(d){
+  if(!d) return '';
+  return (d.getMonth()+1) + '/' + d.getDate();
+}
+function daysBetween(a,b){
+  return Math.round((b - a) / 86400000);
+}
+
+/* ---------- build row objects from array-of-arrays ---------- */
+function buildRows(aoa, headerRowIdx, ci, refYear){
+  const rows = [];
+  for(let i=headerRowIdx+1; i<aoa.length; i++){
+    const r = aoa[i];
+    if(!r) break;
+    const no = cellStr(r, ci.no);
+    const name = cellStr(r, ci.업무명);
+    if(!no && !name) break; // 표 끝
+    if(!name) continue;     // 업무명 공란 제외
+    const status = cellStr(r, ci.진행현황);
+    if(status === '취소') continue; // 취소 제외
+
+    rows.push({
+      no, name,
+      cat: cellStr(r, ci.대분류) || '기타',
+      subcat: cellStr(r, ci.중분류),
+      priority: cellStr(r, ci.중요도),
+      reqteam: cellStr(r, ci.요청팀),
+      reqer: cellStr(r, ci.요청자),
+      plan: cellName(r, ci.기획),
+      design: cellName(r, ci.디자인),
+      pub: cellName(r, ci.퍼블),
+      status: status,
+      dueDate: parseDate(cellStr(r, ci.완료예정일), refYear),
+      doneDate: parseDate(cellStr(r, ci.완료일), refYear),
+      planH: cellNum(r, ci.기획h),
+      designH: cellNum(r, ci.디자인h),
+      pubH: cellNum(r, ci.퍼블h),
+      gaH: cellNum(r, ci.gah),
+      pmH: cellNum(r, ci.pmh)
+    });
+  }
+  return rows;
+}
+
+/* =========================================================
+   집계 & 렌더
+   ========================================================= */
+function renderAll(rows, hasHCols, hasNameCols){
+  const today = new Date(); today.setHours(0,0,0,0);
+
+  document.getElementById('meta-date').textContent =
+    today.getFullYear()+'.'+String(today.getMonth()+1).padStart(2,'0')+'.'+String(today.getDate()).padStart(2,'0');
+  document.getElementById('meta-cycle').textContent = '시트 연동 기준 · 총 '+rows.length+'건';
+
+  const mainRows = rows; // 대분류를 시트 그대로 사용(고정 카테고리 없음)
+
+  /* ---- KPI ---- */
+  const total = mainRows.length;
+  const done = mainRows.filter(r=>r.status==='완료').length;
+  const progress = mainRows.filter(r=>r.status==='진행').length;
+  const wait = mainRows.filter(r=>r.status==='대기'||r.status==='보류').length;
+  const etc = total - done - progress - wait;
+  const donePct = total? (done/total*100):0, progPct = total?(progress/total*100):0,
+        etcPct = total?(etc/total*100):0, waitPct = total?(wait/total*100):0;
+
+  const heroHTML = `
+    <div class="kpi"><span class="dot" style="background:var(--gray);"></span>
+      <div class="label">전체 업무량</div><div class="num">${total}<small>건</small></div>
+      <div class="delta">대분류 기준 합산(취소 제외)</div></div>
+    <div class="kpi"><span class="dot" style="background:var(--blue);"></span>
+      <div class="label">완료</div><div class="num">${done}<small>건 · ${donePct.toFixed(1)}%</small></div>
+      <div class="delta">전체 대비 완료율</div></div>
+    <div class="kpi"><span class="dot" style="background:var(--green);"></span>
+      <div class="label">진행 중</div><div class="num">${progress}<small>건</small></div>
+      <div class="delta">기획→디자인→퍼블 순차 연계 진행</div></div>
+    <div class="kpi"><span class="dot" style="background:var(--amber);"></span>
+      <div class="label">대기·보류</div><div class="num">${wait}<small>건</small></div>
+      <div class="delta">자료·검수 회신 대기 중(원인 하단 참조)</div></div>`;
+  document.getElementById('hero-kpis').innerHTML = heroHTML;
+
+  document.getElementById('hero-stackbar').innerHTML =
+    `<div style="width:${donePct}%;background:var(--blue);"></div>
+     <div style="width:${etcPct}%;background:var(--gray);"></div>
+     <div style="width:${waitPct}%;background:var(--amber);"></div>
+     <div style="width:${progPct}%;background:var(--green);"></div>`;
+  document.getElementById('hero-legend').innerHTML =
+    `<span><i class="dot" style="background:var(--blue);"></i>완료 ${done}</span>
+     <span><i class="dot" style="background:var(--green);"></i>진행 ${progress}</span>
+     <span><i class="dot" style="background:var(--gray);"></i>기타 ${etc}</span>
+     <span><i class="dot" style="background:var(--amber);"></i>대기·보류 ${wait}</span>`;
+
+  /* ---- 카테고리별(대분류 상위 8개, 나머지는 기타로 묶음) ---- */
+  const catCounts = {};
+  mainRows.forEach(r=>{ catCounts[r.cat] = (catCounts[r.cat]||0)+1; });
+  const catSorted = Object.keys(catCounts).sort((a,b)=>catCounts[b]-catCounts[a]);
+  const TOP_N = 8;
+  const topCats = catSorted.slice(0, TOP_N);
+  const restCats = catSorted.slice(TOP_N);
+
+  let catHTML = '';
+  topCats.forEach(cat=>{
+    const rs = mainRows.filter(r=>r.cat===cat);
+    const n = rs.length;
+    const d = rs.filter(r=>r.status==='완료').length;
+    const p = rs.filter(r=>r.status==='진행').length;
+    const w = rs.filter(r=>r.status==='대기'||r.status==='보류').length;
+    const e = n-d-p-w;
+    catHTML += `<div class="cat-card">
+      <div class="cat-name">${escapeHTML(cat)}</div>
+      <div class="cat-total">${n}<small> 건</small></div>
+      <div class="cat-mini">
+        <div style="width:${n?d/n*100:0}%;background:var(--blue);"></div>
+        <div style="width:${n?p/n*100:0}%;background:var(--green);"></div>
+        <div style="width:${n?w/n*100:0}%;background:var(--amber);"></div>
+        <div style="width:${n?e/n*100:0}%;background:var(--gray);"></div>
+      </div>
+      <div class="cat-breakdown">완료 <b>${d}</b> · 진행 <b>${p}</b>${w?' · 대기/보류 <b>'+w+'</b>':''}${e?' · 기타 <b>'+e+'</b>':''}</div>
+    </div>`;
+  });
+  const restCount = restCats.reduce((s,c)=>s+catCounts[c],0);
+  const siHTML = restCats.length
+    ? `<div class="si-note" id="si-note">※ 그 외 대분류 ${restCats.length}개(${restCats.map(escapeHTML).join('·')}) 합산 <b>${restCount}건</b>은 위 카드에서 별도 표시하지 않았습니다.</div>`
+    : `<div class="si-note" id="si-note">※ 전체 대분류가 위 카드에 모두 표시되어 있습니다.</div>`;
+  document.getElementById('cat-cards').innerHTML = (catHTML || '<div class="hint">표시할 대분류 데이터가 없습니다.</div>') + siHTML;
+  document.getElementById('cat-desc').textContent = `대분류 ${catSorted.length}종 · 건수 많은 순 상위 ${topCats.length}개 표시`;
+
+  /* ---- 요청팀 · 요청자 결합 ---- */
+  function bucketOf(status){ return status==='완료'?'완료':(status==='진행'?'진행':'기타'); }
+  const pairMap = {};
+  rows.forEach(r=>{
+    const team = r.reqteam || '미기재';
+    const persons = (r.reqer||'미기재').split(/\s+/).filter(Boolean);
+    persons.forEach(person=>{
+      const key = team+'|||'+person;
+      if(!pairMap[key]) pairMap[key] = {team, person, 완료:0,진행:0,기타:0};
+      pairMap[key][bucketOf(r.status)]++;
+    });
+  });
+  const pairStats = Object.values(pairMap)
+    .map(v=>({...v, total:v.완료+v.진행+v.기타}))
+    .sort((a,b)=>b.total-a.total);
+
+  function reqRowHTML(item){
+    const t = item.total;
+    const dp = t? item.완료/t*100:0, pp = t? item.진행/t*100:0, ep = t? item.기타/t*100:0;
+    const parts = [];
+    if(item.완료) parts.push('완료'+item.완료);
+    if(item.진행) parts.push('진행'+item.진행);
+    if(item.기타) parts.push('기타'+item.기타);
+    return `<div class="req-row">
+      <div class="req-label"><div class="req-label-main">${escapeHTML(item.person)}</div><div class="req-label-sub">${escapeHTML(item.team)}</div></div>
+      <div class="req-track">
+        <div style="width:${dp}%;background:var(--blue);"></div>
+        <div style="width:${pp}%;background:var(--green);"></div>
+        <div style="width:${ep}%;background:var(--amber);"></div>
+      </div>
+      <div class="req-val"><b>${t}건</b> · ${parts.join('·')}</div>
+    </div>`;
+  }
+
+  const topPairs = pairStats.slice(0,10);
+  const restPairs = pairStats.slice(10);
+  document.getElementById('reqsrc-rows').innerHTML = topPairs.map(reqRowHTML).join('') || '<div class="hint">요청 출처 데이터가 없습니다</div>';
+  document.getElementById('reqsrc-etc').textContent = restPairs.length
+    ? `그 외 ${restPairs.map(p=>p.person+'('+p.team+')').join('·')} 각 1건 내외(합산 ${restPairs.reduce((s,p)=>s+p.total,0)}건)`
+    : '';
+  document.getElementById('reqsrc-desc').textContent = `요청팀·요청자 기준 · ${rows.length}건`;
+
+  /* ---- 담당자별 배정 (기획/디자인/퍼블 이름 컬럼 있을 때만) + Capacity 기준 인원 수 산정 ---- */
+  const roleCols = { '기획':'plan', '디자인':'design', '퍼블':'pub' };
+  const roleNameCounts = {}; // role -> {name: count}
+  const roleHeadcount = {};  // role -> 등장한 고유 담당자 수
+  if(hasNameCols){
+    Object.keys(roleCols).forEach(role=>{
+      const counts = {};
+      rows.forEach(r=>{
+        const v = r[roleCols[role]];
+        if(v){ counts[v] = (counts[v]||0)+1; }
+      });
+      roleNameCounts[role] = counts;
+      roleHeadcount[role] = Object.keys(counts).length;
+    });
+    let staffHTML = '';
+    let totalAssign = 0;
+    Object.keys(roleCols).forEach(role=>{
+      const sorted = Object.entries(roleNameCounts[role]).sort((a,b)=>b[1]-a[1]);
+      const max = sorted.length? sorted[0][1] : 1;
+      sorted.forEach(([name,cnt])=>{
+        totalAssign += cnt;
+        const w = Math.max(cnt/max*100, 2);
+        staffHTML += `<div class="staff-row"><div class="staff-name">${escapeHTML(name)}</div><div class="staff-track"><div class="staff-fill" style="width:${w}%;"></div></div><div class="staff-val">${cnt}</div></div>`;
+      });
+    });
+    const totalHeadcount = Object.values(roleHeadcount).reduce((s,n)=>s+n,0);
+    document.getElementById('staff-bars').innerHTML = staffHTML || '<div class="hint">담당자 컬럼이 없습니다</div>';
+    document.getElementById('staff-hint').textContent = `시트 등장 담당자 ${totalHeadcount}명(기획${roleHeadcount['기획']||0}·디자인${roleHeadcount['디자인']||0}·퍼블${roleHeadcount['퍼블']||0}) · 총 ${totalAssign}건 배정`;
+    document.getElementById('header-sub').textContent =
+      `투입 인력 ${totalHeadcount}명(기획${roleHeadcount['기획']||0}·디자인${roleHeadcount['디자인']||0}·퍼블${roleHeadcount['퍼블']||0}, 시트 등장 담당자 기준) 기준, 처리 현황과 다음 주 처리 계획을 정리했습니다.`;
+  }
+
+  /* ---- Capacity (H 컬럼 있을 때만, 기준 인원 = 역할별 등장 담당자 수) ---- */
+  let totalPctForNarrative = null;
+  if(hasHCols && hasNameCols){
+    const sums = { '기획':0,'디자인':0,'퍼블':0 };
+    rows.forEach(r=>{ sums['기획']+=r.planH; sums['디자인']+=r.designH; sums['퍼블']+=r.pubH; });
+    let meterHTML = '';
+    let totalBase=0, totalInput=0;
+    Object.keys(sums).forEach(role=>{
+      const base = roleHeadcount[role] || 0; // 1인 = 1.0MM
+      const input = sums[role]/WORK_HOURS_PER_MM;
+      const pct = base? (input/base*100):0;
+      totalBase += base; totalInput += input;
+      const fillw = base ? Math.min(pct,120)/120*100 : 0;
+      meterHTML += `<div class="meter-row">
+        <div class="meter-role">${role}</div>
+        <div class="meter-track"><div class="tick" style="left:83.33%;"></div><div class="meter-fill" style="width:${fillw}%;background:${ROLE_COLOR[role]};"></div></div>
+        <div class="meter-val">${base? pct.toFixed(1)+'%':'–'}<small>${input.toFixed(2)} / ${base.toFixed(1)} MM</small></div>
+      </div>`;
+    });
+    document.getElementById('capacity-meters').innerHTML = meterHTML;
+    document.getElementById('cap-total-mm').textContent = totalInput.toFixed(2)+' / '+totalBase.toFixed(1);
+    const totalPct = totalBase? (totalInput/totalBase*100):0;
+    document.getElementById('cap-total-pct').textContent = totalBase? totalPct.toFixed(1)+'%' : '–';
+    totalPctForNarrative = totalBase? totalPct : null;
+  } else {
+    document.getElementById('capacity-meters').innerHTML = '<div class="hint">기획(H)/디자인(H)/퍼블(H) 및 담당자 컬럼이 모두 있어야 투입률을 계산할 수 있습니다.</div>';
+  }
+
+  /* ---- 진행 중 업무 상세 + 리스크 ---- */
+  const openRows = mainRows.filter(r => r.status !== '완료');
+  openRows.sort((a,b)=>{
+    if(!a.dueDate && !b.dueDate) return 0;
+    if(!a.dueDate) return 1;
+    if(!b.dueDate) return -1;
+    return a.dueDate - b.dueDate;
+  });
+
+  const URGENT_PRIORITIES = ['긴급','상','중요'];
+  const overdue = [], soon = [], urgent = [], normal = [];
+  openRows.forEach(r=>{
+    let tag='normal';
+    if(r.dueDate){
+      const diff = daysBetween(today, r.dueDate);
+      if(diff < 0) tag='overdue';
+      else if(diff <= 7) tag='soon';
+    }
+    if(tag==='normal' && URGENT_PRIORITIES.includes(r.priority)) tag='urgent';
+    r._tag = tag;
+    if(tag==='overdue') overdue.push(r);
+    else if(tag==='soon') soon.push(r);
+    else if(tag==='urgent') urgent.push(r);
+    else normal.push(r);
+  });
+
+  document.getElementById('task-count').textContent = openRows.length;
+  document.getElementById('task-tbody').innerHTML = openRows.map(r=>{
+    let pillClass='pill-blue', pillText= r.status==='진행'?'진행':(r.status||'대기');
+    if(r._tag==='overdue'){ pillClass='pill-red'; pillText='지연 · '+(r.status||'진행'); }
+    else if(r._tag==='soon'){ pillClass='pill-amber'; pillText='임박 · '+(r.status||'진행'); }
+    else if(r._tag==='urgent'){ pillClass='pill-pink'; pillText='우선 · '+(r.status||'진행'); }
+    else if(r.status==='대기'||r.status==='예정'||r.status==='접수'||r.status==='검토'){ pillClass='pill-gray'; pillText=r.status; }
+    const star = r._tag==='urgent' ? '<span class="star">★</span>' : '';
+    const dateStr = r.dueDate ? fmtMD(r.dueDate) : '일정 협의 중';
+    const dateHTML = r._tag==='overdue' ? `<span class="overdue">${dateStr}</span>` : dateStr;
+    return `<tr>
+      <td class="cell-cat"><div class="main">${escapeHTML(r.cat)}</div><div class="sub">${escapeHTML(r.subcat)}</div></td>
+      <td class="cell-name">${escapeHTML(r.name)}${star}</td>
+      <td><span class="pill ${pillClass}">${escapeHTML(pillText)}</span></td>
+      <td class="cell-date">${dateHTML}</td>
+    </tr>`;
+  }).join('');
+
+  const riskHTML = `
+    <div class="risk-card risk-red">
+      <span class="tag"><i class="dot"></i>일정 영향 가능</span>
+      <div class="count">${overdue.length}<small> 건</small></div>
+      <ul>${overdue.slice(0,3).map(r=>`<li>${escapeHTML(r.name.slice(0,40))}</li>`).join('') || '<li>해당 없음</li>'}</ul>
+      <p class="cause">원인: 완료예정일 경과 후 미완료 — 회신·검수 지연 가능성</p>
+    </div>
+    <div class="risk-card risk-amber">
+      <span class="tag"><i class="dot"></i>자료·의사결정 대기</span>
+      <div class="count">${normal.filter(r=>r.status==='대기').length + urgent.filter(r=>r.status==='대기').length}<small> 건</small></div>
+      <ul>${openRows.filter(r=>r.status==='대기' && r._tag!=='overdue' && r._tag!=='soon').slice(0,3).map(r=>`<li>${escapeHTML(r.name.slice(0,35))}(${r.dueDate?fmtMD(r.dueDate):'미정'})</li>`).join('') || '<li>해당 없음</li>'}</ul>
+      <p class="cause">원인: 배포 일정 확정 및 요청 회신 대기</p>
+    </div>
+    <div class="risk-card risk-blue">
+      <span class="tag"><i class="dot"></i>7일 내 마감 예정</span>
+      <div class="count">${soon.length}<small> 건</small></div>
+      <ul>${soon.slice(0,3).map(r=>`<li>${escapeHTML(r.name.slice(0,35))}(${fmtMD(r.dueDate)})</li>`).join('') || '<li>해당 없음</li>'}</ul>
+      <p class="cause">내부 작업 정상 진행 중 · 순차 검수·배포 예정</p>
+    </div>`;
+  document.getElementById('risk-cards').innerHTML = riskHTML;
+
+  /* ---- 운영 방향 / 협조 요청 문구(계산값 기반) ---- */
+  const waitCount = normal.filter(r=>r.status==='대기').length + urgent.filter(r=>r.status==='대기').length;
+  const pctStr = totalPctForNarrative!==null ? totalPctForNarrative.toFixed(1)+'%' : '집계 불가';
+  document.getElementById('choice1-p').textContent =
+    `현재 인력으로 중요도·긴급도 순 처리 중이며, 투입률 ${pctStr}로 가동 중입니다. 다음 주도 동일 체계를 유지할 예정입니다.`;
+  document.getElementById('choice2-p').textContent =
+    `대기 중인 ${waitCount}건을 포함해 전체를 동시에 진행하려면 투입률이 높은 직무 위주 증원이 필요합니다.`;
+  document.getElementById('choice3-p').textContent =
+    `현 인력으로 전체 완료를 목표로 한다면, 마감이 임박한 ${soon.length}건 이후 항목의 착수 시점을 순연할 필요가 있습니다.`;
+  document.getElementById('ask-panel-p').textContent =
+    `자료·의사결정 대기 중인 업무 ${waitCount}건은 배포 일정 확정 및 회신이 필요합니다. 원활한 일정 준수를 위해 자료·검토 의견을 우선순위에 따라 순차 전달 부탁드립니다.`;
+
+  // 최근 4주 완료 건수 평균으로 다음 주 예상 처리량 추정
+  const doneWithDate = rows.filter(r=>r.status==='완료' && r.doneDate);
+  let weeklyEst = '데이터 부족으로 산정 불가';
+  if(doneWithDate.length){
+    const maxDate = doneWithDate.reduce((m,r)=>r.doneDate>m?r.doneDate:m, doneWithDate[0].doneDate);
+    const fourWeeksAgo = new Date(maxDate); fourWeeksAgo.setDate(fourWeeksAgo.getDate()-28);
+    const recent = doneWithDate.filter(r=>r.doneDate>=fourWeeksAgo);
+    const avgPerWeek = recent.length / 4;
+    if(avgPerWeek>0){
+      const lo = Math.max(1, Math.round(avgPerWeek*0.85));
+      const hi = Math.round(avgPerWeek*1.15);
+      weeklyEst = `약 ${lo}~${hi}건`;
+    }
+  }
+  document.getElementById('ask-panel-badge').textContent = `다음 주 예상 처리량 ${weeklyEst}`;
+
+  document.getElementById('page-foot').textContent =
+    `U+공식온라인스토어 운영_디지털사업 관리용 시트 기준 · ${today.getFullYear()}.${String(today.getMonth()+1).padStart(2,'0')}.${String(today.getDate()).padStart(2,'0')} 갱신 · 매주 수요일 업데이트`;
+}
+
+function escapeHTML(s){
+  return (s===undefined||s===null?'':String(s)).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function processAOA(aoa, sourceLabel){
+  const found = findHeaderRowAndMap(aoa);
+  if(!found){
+    setStatus('필요한 컬럼(업무명, 진행 현황 등)을 찾지 못했습니다. 시트 구조를 확인해주세요.', 'err');
+    return;
+  }
+  const refYear = new Date().getFullYear();
+  const rows = buildRows(aoa, found.headerRowIdx, found.colIndex, refYear);
+  if(rows.length===0){
+    setStatus('데이터 행을 찾지 못했습니다.', 'err');
+    return;
+  }
+  const hasHCols = found.colIndex.기획h>=0 && found.colIndex.디자인h>=0 && found.colIndex.퍼블h>=0;
+  const hasNameCols = found.colIndex.기획>=0 && found.colIndex.디자인>=0 && found.colIndex.퍼블>=0;
+  renderAll(rows, hasHCols, hasNameCols);
+  setStatus(`${sourceLabel} 연동 완료 · ${rows.length}건 반영됨 (${new Date().toLocaleTimeString('ko-KR')})`, 'ok');
+}
+
+/* ---------- 엑셀 업로드 ---------- */
+document.getElementById('ds-file-input').addEventListener('change', function(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  setStatus('엑셀 파일을 읽는 중…');
+  const reader = new FileReader();
+  reader.onload = function(evt){
+    try{
+      const wb = XLSX.read(evt.target.result, {type:'array'});
+      let bestAoa = null;
+      for(const sheetName of wb.SheetNames){
+        const aoa = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], {header:1, raw:false, defval:''});
+        if(findHeaderRowAndMap(aoa)){ bestAoa = aoa; break; }
+      }
+      if(!bestAoa){
+        setStatus('업무명/진행현황 컬럼을 가진 시트를 찾지 못했습니다.', 'err');
+        return;
+      }
+      processAOA(bestAoa, '엑셀 파일');
+    }catch(err){
+      console.error(err);
+      setStatus('엑셀 파일을 읽는 중 오류가 발생했습니다: '+err.message, 'err');
+    }
+  };
+  reader.onerror = function(){ setStatus('파일을 읽지 못했습니다.', 'err'); };
+  reader.readAsArrayBuffer(file);
+});
+
+/* ---------- 구글시트 URL (CSV 직접 → CORS 프록시 → JSONP 순으로 재시도) ---------- */
+let __gsCallbackCounter = 0;
+function dsLoadFromUrl(){
+  const url = document.getElementById('ds-url-input').value.trim();
+  if(!url){ setStatus('구글시트 URL을 입력해주세요.', 'err'); return; }
+  const idMatch = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
+  if(!idMatch){ setStatus('올바른 구글시트 URL이 아닙니다.', 'err'); return; }
+  const sheetId = idMatch[1];
+  const gidMatch = url.match(/[#&?]gid=(\d+)/);
+  const gid = gidMatch ? gidMatch[1] : '0';
+
+  setStatus('구글시트를 불러오는 중…');
+  const csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?gid=${gid}&tqx=out:csv`;
+
+  function parseCsvText(text){
+    if(/^\s*<(!DOCTYPE|html)/i.test(text)){ throw new Error('로그인 페이지가 반환됨(비공개 시트)'); }
+    const wb = XLSX.read(text, {type:'string'});
+    return XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1, defval:''});
+  }
+
+  // 1차: 직접 fetch
+  fetch(csvUrl)
+    .then(res => { if(!res.ok) throw new Error('HTTP '+res.status); return res.text(); })
+    .then(text => processAOA(parseCsvText(text), '구글시트'))
+    .catch(err1 => {
+      console.warn('CSV 직접 요청 실패, CORS 프록시로 재시도:', err1);
+      // 2차: 공개 CORS 프록시 경유
+      const proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(csvUrl);
+      fetch(proxyUrl)
+        .then(res => { if(!res.ok) throw new Error('HTTP '+res.status); return res.text(); })
+        .then(text => processAOA(parseCsvText(text), '구글시트(프록시 경유)'))
+        .catch(err2 => {
+          console.warn('CORS 프록시도 실패, JSONP로 재시도:', err2);
+          // 3차: JSONP
+          dsLoadFromUrlJSONP(sheetId, gid);
+        });
+    });
+}
+
+function dsLoadFromUrlJSONP(sheetId, gid){
+  const cbName = '__gsCallback' + (__gsCallbackCounter++);
+  const timeoutId = setTimeout(()=>{
+    setStatus('구글시트를 불러오지 못했습니다. 공유 설정("링크가 있는 모든 사용자")을 확인해주세요.', 'err');
+    cleanup();
+  }, 12000);
+
+  function cleanup(){
+    clearTimeout(timeoutId);
+    delete window[cbName];
+    const s = document.getElementById(cbName+'-script');
+    if(s) s.remove();
+  }
+
+  window[cbName] = function(json){
+    cleanup();
+    try{
+      const cols = (json.table.cols||[]).map(c=>c.label||'');
+      const aoa = [];
+      if(cols.some(c=>c)) aoa.push(cols);
+      (json.table.rows||[]).forEach(r=>{
+        aoa.push((r.c||[]).map(cell => cell ? (cell.f!==undefined && cell.f!==null ? cell.f : cell.v) : ''));
+      });
+      processAOA(aoa, '구글시트');
+    }catch(err){
+      console.error(err);
+      setStatus('구글시트 데이터를 해석하지 못했습니다.', 'err');
+    }
+  };
+
+  const script = document.createElement('script');
+  script.id = cbName+'-script';
+  script.src = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?gid=${gid}&tqx=out:json;responseHandler:${cbName}`;
+  script.onerror = function(){
+    setStatus('구글시트를 불러오지 못했습니다. URL과 공유 설정을 확인해주세요.', 'err');
+    cleanup();
+  };
+  document.body.appendChild(script);
+}
+
+/* ---------- 페이지 진입 시 지정 시트 자동 로드 ---------- */
+dsLoadFromUrl();
+</script>
+</body>
+</html>
