@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>업무 요청 접수 템플릿 · 통합 검수 체크리스트</title>
+<style>
+  :root {
+    --ink: #1c2430;
+    --sub: #5b6472;
+    --line: #d8dde3;
+    --line-soft: #eceff2;
+    --label-bg: #f4f6f8;
+    --head-bg: #e7eaee;
+    --stage-bg: #eef1f4;
+    --accent: #2e5aa8;
+    --accent-soft: #eaf0fb;
+    --warn: #b3541e;
+    --warn-soft: #fbeee3;
+    --ok: #1f7a4d;
+    --ok-soft: #e7f5ee;
+    --paper: #ffffff;
+    --page-bg: #eef1f5;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--page-bg);
+    color: var(--ink);
+    font-family: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", -apple-system, sans-serif;
+    line-height: 1.5;
+    padding: 32px 16px 80px;
+  }
+
+  .toolbar {
+    max-width: 980px;
+    margin: 0 auto 20px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  .toolbar button {
+    font-family: inherit;
+    font-size: 13px;
+    padding: 8px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--line);
+    background: var(--paper);
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .toolbar button.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  .toolbar button:hover { filter: brightness(0.97); }
+
+  .sheet {
+    max-width: 980px;
+    margin: 0 auto 40px;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 40px 44px;
+  }
+
+  .doc-tag {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: var(--accent);
+    background: var(--accent-soft);
+    padding: 3px 9px;
+    border-radius: 4px;
+    margin-bottom: 10px;
+  }
+
+  h1 {
+    font-size: 22px;
+    margin: 0 0 6px;
+    letter-spacing: -0.01em;
+  }
+
+  .desc {
+    font-size: 12.5px;
+    color: var(--sub);
+    margin: 0 0 22px;
+    padding: 10px 12px;
+    background: var(--label-bg);
+    border-left: 3px solid var(--accent);
+    border-radius: 4px;
+  }
+
+  h2.section-title {
+    font-size: 15px;
+    margin: 30px 0 6px;
+    padding-top: 18px;
+    border-top: 1px solid var(--line-soft);
+  }
+
+  /* ---------- Form A ---------- */
+  table.form-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+  }
+  table.form-table td {
+    border: 1px solid var(--line);
+    padding: 0;
+    vertical-align: middle;
+  }
+  table.form-table td.label {
+    width: 170px;
+    background: var(--label-bg);
+    font-weight: 600;
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+  table.form-table td.value { padding: 4px; }
+
+  .field-input, .field-select, .field-textarea {
+    width: 100%;
+    border: none;
+    background: transparent;
+    font-family: inherit;
+    font-size: 13.5px;
+    color: var(--ink);
+    padding: 8px 10px;
+    outline: none;
+    border-radius: 4px;
+  }
+  .field-input:focus, .field-select:focus, .field-textarea:focus {
+    background: var(--accent-soft);
+  }
+  .field-textarea { resize: vertical; min-height: 44px; font-family: inherit; }
+
+  .date-field {
+    width: auto;
+    min-width: 0;
+    flex: 0 0 auto;
+    display: inline-block;
+  }
+
+  /* file upload */
+  .file-upload { padding: 0 10px 10px; }
+  .file-drop {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border: 1.5px dashed var(--line);
+    border-radius: 6px;
+    background: var(--label-bg);
+    color: var(--sub);
+    font-size: 12.5px;
+    cursor: pointer;
+    transition: border-color .15s ease, background .15s ease, color .15s ease;
+  }
+  .file-drop:hover, .file-drop.dragover {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+  .file-drop-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    font-size: 13px;
+    flex-shrink: 0;
+  }
+  .file-list {
+    list-style: none;
+    margin: 8px 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .file-list:empty { margin: 0; }
+  .file-list li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 6px 8px;
+  }
+  .file-list li .file-thumb {
+    width: 32px; height: 32px;
+    border-radius: 4px;
+    object-fit: cover;
+    flex-shrink: 0;
+    border: 1px solid var(--line-soft);
+    background: var(--label-bg);
+  }
+  .file-list li .file-icon {
+    width: 32px; height: 32px;
+    border-radius: 4px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--label-bg);
+    border: 1px solid var(--line-soft);
+    font-size: 13px;
+    color: var(--sub);
+  }
+  .file-list li .file-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--ink);
+  }
+  .file-list li .file-size {
+    color: var(--sub);
+    font-size: 11.5px;
+    flex-shrink: 0;
+  }
+  .file-list li .file-remove {
+    border: none;
+    background: transparent;
+    color: var(--sub);
+    cursor: pointer;
+    font-size: 15px;
+    line-height: 1;
+    padding: 2px 4px;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+  .file-list li .file-remove:hover { color: var(--warn); background: var(--warn-soft); }
+  .upload-note {
+    margin: 8px 0 0;
+    font-size: 11px;
+    color: var(--sub);
+  }
+
+  .checkrow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 16px;
+    padding: 9px 10px;
+  }
+  .checkrow label {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 13px;
+    color: var(--ink);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .checkrow input[type="checkbox"], .checkrow input[type="radio"] {
+    accent-color: var(--accent);
+    width: 14px; height: 14px;
+  }
+  .inline-note {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    margin-left: 4px;
+  }
+  .inline-note input[type="text"] {
+    flex: 1;
+    min-width: 120px;
+    border: none;
+    border-bottom: 1px solid var(--line);
+    background: transparent;
+    font-family: inherit;
+    font-size: 13px;
+    padding: 3px 4px;
+    outline: none;
+  }
+
+  .duty-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px 10px;
+  }
+  .duty-item {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px 14px;
+    padding: 7px 0;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .duty-item:last-child { border-bottom: none; }
+  .duty-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink);
+    cursor: pointer;
+    flex: 0 0 auto;
+    min-width: 68px;
+  }
+  .duty-check input[type="checkbox"] {
+    accent-color: var(--accent);
+    width: 15px; height: 15px;
+  }
+  .duty-owner-select {
+    font-family: inherit;
+    font-size: 12.5px;
+    color: var(--ink);
+    padding: 5px 8px;
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    background: var(--paper);
+    cursor: pointer;
+    outline: none;
+  }
+  .duty-owner-select:focus {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+
+  /* history table */
+  table.hist-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    margin-top: 4px;
+  }
+  table.hist-table th {
+    background: var(--head-bg);
+    border: 1px solid var(--line);
+    padding: 9px 8px;
+    font-size: 12.5px;
+    font-weight: 700;
+  }
+  table.hist-table td {
+    border: 1px solid var(--line);
+    padding: 2px;
+  }
+  table.hist-table col.c-date  { width: 12%; }
+  table.hist-table col.c-req   { width: 12%; }
+  table.hist-table col.c-desc  { width: 42%; }
+  table.hist-table col.c-reason{ width: 20%; }
+  table.hist-table col.c-status{ width: 14%; }
+
+  .add-row-btn {
+    margin-top: 10px;
+    font-size: 12.5px;
+    padding: 7px 12px;
+    border-radius: 6px;
+    border: 1px dashed var(--line);
+    background: var(--label-bg);
+    color: var(--sub);
+    cursor: pointer;
+  }
+  .add-row-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+  /* ---------- Sheet D ---------- */
+  .meta-grid {
+    display: flex;
+    flex-wrap: wrap;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    overflow: hidden;
+    margin-bottom: 22px;
+    font-size: 13.5px;
+  }
+  .meta-grid > div {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line);
+    border-right: 1px solid var(--line);
+    flex: 1 1 220px;
+  }
+  .meta-grid > div.mlabel {
+    background: var(--label-bg);
+    font-weight: 600;
+    flex: 0 0 140px;
+  }
+  .meta-grid input {
+    width: 100%; border: none; background: transparent;
+    font-family: inherit; font-size: 13.5px; outline: none;
+  }
+
+  .progress-wrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+    font-size: 13px;
+    color: var(--sub);
+  }
+  .progress-bar {
+    flex: 1;
+    height: 8px;
+    background: var(--line-soft);
+    border-radius: 99px;
+    overflow: hidden;
+  }
+  .progress-bar > div {
+    height: 100%;
+    background: var(--accent);
+    width: 0%;
+    transition: width .2s ease;
+  }
+  #progress-label { white-space: nowrap; font-weight: 600; color: var(--ink); }
+
+  table.checklist {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  table.checklist th {
+    background: var(--head-bg);
+    border: 1px solid var(--line);
+    padding: 9px 8px;
+    font-size: 12.5px;
+    font-weight: 700;
+    text-align: center;
+  }
+  table.checklist col.c-stage { width: 13%; }
+  table.checklist col.c-item  { width: 39%; }
+  table.checklist col.c-check { width: 9%; }
+  table.checklist col.c-owner { width: 12%; }
+  table.checklist col.c-date  { width: 13%; }
+  table.checklist col.c-remark{ width: 14%; }
+
+  table.checklist td {
+    border: 1px solid var(--line);
+    padding: 8px;
+    vertical-align: middle;
+  }
+  table.checklist td.stage-cell {
+    background: var(--stage-bg);
+    font-weight: 700;
+    text-align: center;
+    font-size: 12.5px;
+  }
+  table.checklist td.item-cell { font-size: 13px; }
+  table.checklist td.check-cell { text-align: center; }
+  table.checklist input[type="checkbox"] {
+    width: 18px; height: 18px;
+    accent-color: var(--ok);
+    cursor: pointer;
+  }
+  table.checklist tr.checked td.item-cell {
+    color: var(--sub);
+    text-decoration: line-through;
+    text-decoration-color: var(--line);
+  }
+  table.checklist select.status-select,
+  table.checklist select.owner-input,
+  table.checklist input.owner-input,
+  table.checklist input.date-input,
+  table.checklist input.remark-input {
+    width: 100%;
+    border: 1px solid transparent;
+    background: transparent;
+    font-family: inherit;
+    font-size: 12.5px;
+    padding: 5px 6px;
+    border-radius: 4px;
+    outline: none;
+  }
+  table.checklist select.status-select:focus,
+  table.checklist select.owner-input:focus,
+  table.checklist input.owner-input:focus,
+  table.checklist input.date-input:focus,
+  table.checklist input.remark-input:focus {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+  }
+  select.status-select[data-v="이슈있음"] { color: var(--warn); font-weight: 600; }
+  select.status-select[data-v="확인완료"] { color: var(--ok); font-weight: 600; }
+
+  .footnote {
+    margin-top: 16px;
+    font-size: 11.5px;
+    color: var(--sub);
+  }
+
+  @media print {
+    body { background: #fff; padding: 0; }
+    .toolbar { display: none; }
+    .sheet { box-shadow: none; border: none; border-radius: 0; margin: 0; padding: 18px 6px; page-break-after: always; }
+    .add-row-btn { display: none; }
+    .file-upload { display: none; }
+  }
+
+  @media (max-width: 700px) {
+    .sheet { padding: 22px 16px; }
+    table.form-table td.label { width: 120px; font-size: 12px; }
+    .meta-grid > div.mlabel { flex-basis: 100px; }
+    table.checklist, table.hist-table { font-size: 11.5px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <button onclick="window.print()">인쇄 / PDF 저장</button>
+  <button class="primary" onclick="addHistRow()">변경이력 행 추가</button>
+</div>
+
+<!-- ============================================================ -->
+<!-- SHEET A -->
+<!-- ============================================================ -->
+<div class="sheet">
+  <div class="doc-tag">TEMPLATE A</div>
+  <h1>업무 요청 접수 표준 템플릿</h1>
+  <p class="desc">※ 사업담당자(고객사)가 신규 기획/기능개선/오류수정 요청 시 아래 항목을 모두 작성하여 메일로 접수합니다. 긴급(상용 장애·오류) 건만 팀즈로 별도 연락하되, 접수는 동일 양식으로 메일에도 남깁니다.</p>
+
+  <table class="form-table">
+    <tr>
+      <td class="label">요청일자</td>
+      <td class="value"><input class="field-input date-field" type="date"></td>
+    </tr>
+    <tr>
+      <td class="label">요청자 / 소속</td>
+      <td class="value"><input class="field-input" type="text" placeholder="예) 홍길동 / 사업기획팀"></td>
+    </tr>
+    <tr>
+      <td class="label">구분 서비스</td>
+      <td class="value">
+        <div class="checkrow">
+          <label><input type="radio" name="service-type"> 공통</label>
+          <label><input type="radio" name="service-type"> 기업</label>
+          <label><input type="radio" name="service-type"> 소상공인</label>
+        </div>
+      </td>
+    </tr>
+    <tr>
+      <td class="label">접수 채널</td>
+      <td class="value">
+        <div class="checkrow">
+          <label><input type="radio" name="channel"> 메일</label>
+          <label><input type="radio" name="channel"> 팀즈(긴급)</label>
+          <label><input type="radio" name="channel"> 기타</label>
+        </div>
+      </td>
+    </tr>
+    <tr>
+      <td class="label">요청 유형</td>
+      <td class="value">
+        <div class="checkrow">
+          <label><input type="checkbox"> 신규 기획</label>
+          <label><input type="checkbox"> 기능 개선</label>
+          <label><input type="checkbox"> 오류 수정</label>
+          <label><input type="checkbox"> 콘텐츠/배너 변경</label>
+          <label><input type="checkbox"> 기타</label>
+        </div>
+      </td>
+    </tr>
+    <tr>
+      <td class="label">긴급 여부</td>
+      <td class="value">
+        <div class="checkrow">
+          <label><input type="radio" name="urgent"> 일반</label>
+          <label><input type="radio" name="urgent"> 긴급(상용 장애·오류에 한함)</label>
+          <span class="inline-note">→ 사유: <input type="text"></span>
+        </div>
+      </td>
+    </tr>
+    <tr>
+      <td class="label">요청 제목</td>
+      <td class="value"><input class="field-input" type="text"></td>
+    </tr>
+    <tr>
+      <td class="label">요청 목적 / 배경</td>
+      <td class="value"><textarea class="field-textarea" rows="2" placeholder="무엇을 위한 요청인지, 어떤 문제를 해결하려는 것인지 서술"></textarea></td>
+    </tr>
+    <tr>
+      <td class="label">상세 요청 내용</td>
+      <td class="value">
+        <textarea class="field-textarea" rows="3" placeholder="화면/기능/문구/이미지 등 변경 대상과 변경 전·후 내용을 구체적으로 기술"></textarea>
+        <div class="file-upload" id="detail-upload">
+          <label class="file-drop" for="detail-file-input">
+            <span class="file-drop-icon">＋</span>
+            <span>파일을 드래그하거나 클릭해서 첨부 (이미지, 문서 등 / 여러 개 가능)</span>
+          </label>
+          <input type="file" id="detail-file-input" multiple hidden>
+          <ul class="file-list" id="detail-file-list"></ul>
+          <p class="upload-note">※ 첨부 파일은 이 페이지 안에서만 미리보기되며 서버로 전송되지 않습니다. 실제 요청 메일을 보낼 때 별도로 첨부해주세요.</p>
+        </div>
+      </td>
+    </tr>
+    <tr>
+      <td class="label">영향 범위</td>
+      <td class="value">
+        <div class="checkrow">
+          <label><input type="checkbox"> 타 페이지 영향</label>
+          <label><input type="checkbox"> GNB 변경</label>
+          <label><input type="checkbox"> 퀵메뉴 변경</label>
+          <label><input type="checkbox"> 플로팅버튼 변경</label>
+          <label><input type="checkbox"> 없음</label>
+          <span class="inline-note">상세: <input type="text"></span>
+        </div>
+      </td>
+    </tr>
+    <tr>
+      <td class="label">참고자료 / 첨부</td>
+      <td class="value"><input class="field-input" type="text" placeholder="이미지, 문구 원문, 유사 사례 URL 등"></td>
+    </tr>
+    <tr>
+      <td class="label">희망 반영일</td>
+      <td class="value"><input class="field-input date-field" type="date"></td>
+    </tr>
+    <tr>
+      <td class="label">담당 업무<br><span style="font-weight:400;font-size:11px;color:var(--sub)">(기획팀 작성)</span></td>
+      <td class="value">
+        <div class="duty-list">
+          <div class="duty-item">
+            <label class="duty-check"><input type="checkbox" name="duty" value="기획"> 기획</label>
+            <select class="duty-owner-select">
+              <option value="">담당자 선택</option>
+              <option value="김*영">김*영</option>
+              <option value="송*현">송*현</option>
+              <option value="전*현">전*현</option>
+              <option value="전*혜">전*혜</option>
+            </select>
+          </div>
+          <div class="duty-item">
+            <label class="duty-check"><input type="checkbox" name="duty" value="디자인"> 디자인</label>
+            <select class="duty-owner-select">
+              <option value="">담당자 선택</option>
+              <option value="우*연">우*연</option>
+              <option value="박*현">박*현</option>
+              <option value="김*윤">김*윤</option>
+            </select>
+          </div>
+          <div class="duty-item">
+            <label class="duty-check"><input type="checkbox" name="duty" value="퍼블리싱"> 퍼블리싱</label>
+            <select class="duty-owner-select">
+              <option value="">담당자 선택</option>
+              <option value="김형*">김형*</option>
+              <option value="최*">최*</option>
+              <option value="이*희">이*희</option>
+            </select>
+          </div>
+          <div class="duty-item">
+            <label class="duty-check"><input type="checkbox" name="duty" value="개발"> 개발</label>
+            <span class="inline-note">담당자: <input type="text"></span>
+          </div>
+        </div>
+      </td>
+    </tr>
+    <tr>
+      <td class="label">비고</td>
+      <td class="value"><input class="field-input" type="text"></td>
+    </tr>
+  </table>
+
+  <h2 class="section-title">변경 이력 (요청 접수 후 추가/수정 발생 시 기록)</h2>
+  <p class="desc" style="margin-bottom:10px;">※ 최초 요청 이후 내용이 변경되는 경우, 새 메일/문서를 만들지 않고 아래 표에 이어서 기록하여 히스토리를 한 곳에서 추적합니다.</p>
+
+  <table class="hist-table">
+    <colgroup>
+      <col class="c-date"><col class="c-req"><col class="c-desc"><col class="c-reason"><col class="c-status">
+    </colgroup>
+    <thead>
+      <tr><th>일자</th><th>요청자</th><th>변경/추가 내용</th><th>사유</th><th>반영 여부</th></tr>
+    </thead>
+    <tbody id="hist-body">
+      <!-- rows injected by JS -->
+    </tbody>
+  </table>
+  <button class="add-row-btn" onclick="addHistRow()">+ 행 추가</button>
+</div>
+
+<!-- ============================================================ -->
+<!-- SHEET D -->
+<!-- ============================================================ -->
+<div class="sheet">
+  <div class="doc-tag">TEMPLATE D</div>
+  <h1>통합 검수 체크리스트</h1>
+  <p class="desc">※ 기획~상용 반영까지 전 단계 검수 항목을 하나의 표로 통합 관리합니다. 각 단계 담당자가 확인 후 체크하며, 이슈 발생 시 비고에 기록해 다음 단계로 이어지도록 합니다.</p>
+
+  <div class="meta-grid">
+    <div class="mlabel">프로젝트명</div><div><input type="text"></div>
+    <div class="mlabel">연동 요청 건명</div><div><input type="text"></div>
+    <div class="mlabel">담당 기획자</div><div><input type="text"></div>
+    <div class="mlabel">오픈 예정일</div><div><input type="date"></div>
+  </div>
+
+  <div class="progress-wrap">
+    <span id="progress-label">0 / 24 완료</span>
+    <div class="progress-bar"><div id="progress-fill"></div></div>
+  </div>
+
+  <table class="checklist" id="checklist-table">
+    <colgroup>
+      <col class="c-stage"><col class="c-item"><col class="c-check"><col class="c-owner"><col class="c-date"><col class="c-remark">
+    </colgroup>
+    <thead>
+      <tr><th>단계</th><th>체크 항목</th><th>확인</th><th>확인자</th><th>확인일자</th><th>비고</th></tr>
+    </thead>
+    <tbody id="checklist-body"></tbody>
+  </table>
+  <p class="footnote">상태값: 미확인 / 확인완료 / 이슈있음 — 이슈있음 선택 시 비고란에 내용을 남겨주세요.</p>
+</div>
+
+<script>
+  // ---------- Sheet A: 파일 첨부 ----------
+  (function initFileUpload() {
+    const dropZone = document.querySelector('#detail-upload .file-drop');
+    const input = document.getElementById('detail-file-input');
+    const list = document.getElementById('detail-file-list');
+    let files = [];
+
+    function formatSize(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    function render() {
+      list.innerHTML = '';
+      files.forEach((file, idx) => {
+        const li = document.createElement('li');
+
+        if (file.type.startsWith('image/')) {
+          const img = document.createElement('img');
+          img.className = 'file-thumb';
+          img.src = URL.createObjectURL(file);
+          li.appendChild(img);
+        } else {
+          const icon = document.createElement('span');
+          icon.className = 'file-icon';
+          icon.textContent = '📄';
+          li.appendChild(icon);
+        }
+
+        const name = document.createElement('span');
+        name.className = 'file-name';
+        name.textContent = file.name;
+        li.appendChild(name);
+
+        const size = document.createElement('span');
+        size.className = 'file-size';
+        size.textContent = formatSize(file.size);
+        li.appendChild(size);
+
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'file-remove';
+        remove.textContent = '✕';
+        remove.onclick = () => { files.splice(idx, 1); render(); };
+        li.appendChild(remove);
+
+        list.appendChild(li);
+      });
+    }
+
+    function addFiles(fileListObj) {
+      files = files.concat(Array.from(fileListObj));
+      render();
+    }
+
+    dropZone.addEventListener('click', () => input.click());
+    input.addEventListener('change', () => { addFiles(input.files); input.value = ''; });
+
+    ['dragenter', 'dragover'].forEach(evt =>
+      dropZone.addEventListener(evt, (e) => { e.preventDefault(); dropZone.classList.add('dragover'); })
+    );
+    ['dragleave', 'drop'].forEach(evt =>
+      dropZone.addEventListener(evt, (e) => { e.preventDefault(); dropZone.classList.remove('dragover'); })
+    );
+    dropZone.addEventListener('drop', (e) => {
+      if (e.dataTransfer && e.dataTransfer.files.length) addFiles(e.dataTransfer.files);
+    });
+  })();
+
+  // ---------- Sheet A: 변경 이력 행 추가 ----------
+  function addHistRow() {
+    const body = document.getElementById('hist-body');
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input class="field-input" type="date"></td>
+      <td><input class="field-input" type="text"></td>
+      <td><input class="field-input" type="text"></td>
+      <td><input class="field-input" type="text"></td>
+      <td>
+        <select class="field-select">
+          <option value=""></option>
+          <option value="대기">대기</option>
+          <option value="진행중">진행중</option>
+          <option value="완료">완료</option>
+          <option value="보류">보류</option>
+        </select>
+      </td>`;
+    body.appendChild(tr);
+  }
+  for (let i = 0; i < 4; i++) addHistRow();
+
+  // ---------- Sheet D: 체크리스트 데이터 ----------
+  const stages = [
+    { name: "기획 검수", items: [
+      "목적에 맞는 구성으로 기획되었는지 확인",
+      "직관적이고 일관된 사용 경험을 고려하여 반영했는지 확인",
+      "고객이 이해하기 쉬운 단어와 문장을 사용하였는지 확인",
+      "논리적인 흐름에 맞게 구성되었는지 확인",
+      "고객이 원하는 정보를 쉽게 찾을 수 있게 구성되었는지 확인",
+      "기능이 사용하기 쉽게 설계되어 있는지 확인",
+      "상품 금액, 내용에 오류가 없는지 확인",
+    ]},
+    { name: "디자인 검수", items: [
+      "목적에 맞는 디자인 컨셉 적용 확인",
+      "주요 CTA 버튼 가시성 확보(상담, 가입 등) 확인",
+      "배너/이미지 최적화 및 해상도 확인",
+      "폰트 및 컬러 가이드 준수 여부 확인",
+    ]},
+    { name: "퍼블리싱 검수", items: [
+      "페이지 틀어짐 등 오류 여부 확인",
+      "웹접근성 가이드에 맞게 적용되었는지 확인(대체텍스트 등)",
+      "온세일 데이터 확인을 위한 이벤트 스크립트 설정 확인",
+      "크로스 브라우징 테스트(Chrome, Edge, Safari, Firefox 등)",
+    ]},
+    { name: "개발 검수", items: [
+      "개발 기능 정상 동작 확인(BO, FO)",
+    ]},
+    { name: "OG/SEO/GEO/GA", items: [
+      "OG / SEO / GEO / GA 정보 적용 확인",
+    ]},
+    { name: "STG 검수", items: [
+      "대상 페이지 PC, MO 전체 검수(오탈자, 레이아웃, 간격 등)",
+      "크로스 브라우징 테스트(Chrome, Edge, Safari)",
+      "상담신청 데이터 정상 수집 여부 확인",
+      "수정사항 반영 확인",
+    ]},
+    { name: "상용 반영", items: [
+      "체크리스트 기준 검수(기능개선 시)",
+    ]},
+  ];
+
+  const ownerMap = {
+    "기획 검수": ["김*영", "송*현", "전*현", "전*혜"],
+    "개발 검수": ["김*영", "송*현", "전*현", "전*혜"],
+    "STG 검수": ["김*영", "송*현", "전*현", "전*혜"],
+    "디자인 검수": ["우*연", "박*현", "김*윤"],
+    "퍼블리싱 검수": ["김형*", "최*", "이*희"],
+    "OG/SEO/GEO/GA": ["김형*", "최*", "이*희"],
+  };
+
+  const body = document.getElementById('checklist-body');
+  let totalItems = 0;
+
+  stages.forEach(stage => {
+    stage.items.forEach((item, idx) => {
+      totalItems++;
+      const tr = document.createElement('tr');
+
+      const stageCell = idx === 0
+        ? `<td class="stage-cell" rowspan="${stage.items.length}">${stage.name}</td>`
+        : '';
+
+      const owners = ownerMap[stage.name];
+      const ownerField = owners
+        ? `<select class="owner-input">
+             <option value=""></option>
+             ${owners.map(name => `<option value="${name}">${name}</option>`).join('')}
+           </select>`
+        : `<input type="text" class="owner-input" placeholder="확인자">`;
+
+      tr.innerHTML = `
+        ${stageCell}
+        <td class="item-cell">${item}</td>
+        <td class="check-cell">
+          <select class="status-select" data-v="미확인">
+            <option value="미확인">미확인</option>
+            <option value="확인완료">확인완료</option>
+            <option value="이슈있음">이슈있음</option>
+          </select>
+        </td>
+        <td>${ownerField}</td>
+        <td><input type="date" class="date-input"></td>
+        <td><input type="text" class="remark-input" placeholder="비고"></td>
+      `;
+      body.appendChild(tr);
+    });
+  });
+
+  document.getElementById('progress-label').textContent = `0 / ${totalItems} 완료`;
+
+  function updateProgress() {
+    const selects = document.querySelectorAll('.status-select');
+    let done = 0;
+    selects.forEach(sel => { if (sel.value === '확인완료') done++; });
+    document.getElementById('progress-label').textContent = `${done} / ${selects.length} 완료`;
+    document.getElementById('progress-fill').style.width = (selects.length ? (done / selects.length * 100) : 0) + '%';
+  }
+
+  document.getElementById('checklist-table').addEventListener('change', (e) => {
+    if (e.target.classList.contains('status-select')) {
+      e.target.setAttribute('data-v', e.target.value);
+      e.target.closest('tr').classList.toggle('checked', e.target.value === '확인완료');
+      updateProgress();
+    }
+  });
+
+  updateProgress();
+</script>
+
+</body>
+</html>
