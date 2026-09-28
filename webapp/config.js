@@ -5,7 +5,7 @@
 
 // 배포용 API 베이스 URL. Vercel에 배포한 뒤 여기 본인의 API 주소를 넣으세요.
 // 비워두면(빈 문자열) 브라우저 localStorage에 저장되는 데모 모드로 동작합니다.
-const API_BASE = "https://works-beige.vercel.app"; // 예: "https://your-project.vercel.app"
+const API_BASE = ""; // 예: "https://your-project.vercel.app"
 
 // 대분류
 const MAJOR_CATEGORIES = ["기업", "소상공인", "GA", "공통", "SI"];
@@ -25,8 +25,7 @@ const OPTIONS = {
   구분: ["신규", "수정", "기타"],
   중요도: ["긴급", "상", "중", "하", "-"],
   진행현황: ["예정", "접수", "검토", "대기", "진행", "검수", "완료", "개발", "보류", "취소"],
-  검수여부: ["O", "X", "-"],
-  만족도: ["매우만족", "만족", "보통", "미흡", "매우미흡"]
+  검수여부: ["O", "X", "-"]
 };
 
 // 집계에서 제외되는 진행현황(취소)
@@ -43,6 +42,9 @@ const ASSIGNEE_OPTIONS = {
   퍼블: ["퍼블1", "퍼블2", "퍼블3"]
 };
 
+// GA 담당 코드
+const GA_OPTIONS = ["GA1", "GA2"];
+
 // 기준 MM (월 목표 투입공수) — 요약 탭 상단 "기준 MM" 표에 사용, 설정에서 조정 가능
 const DEFAULT_TARGET_MM = { 기획: 2, 디자인: 2, 퍼블: 3, GA: 1, PM: 1 };
 
@@ -50,44 +52,39 @@ const DEFAULT_TARGET_MM = { 기획: 2, 디자인: 2, 퍼블: 3, GA: 1, PM: 1 };
 const MM_HOURS = 160;
 
 // 업무현황 시트 컬럼 정의 (표시 순서)
-// type: text | textarea | select | date | number | readonly
+// type: text | textarea | select | select-dependent | date | number | readonly | ticket
 const COLUMNS = [
-  { key: "no", label: "NO", type: "readonly", width: 48, group: "meta" },
-  { key: "ticket", label: "티켓번호", type: "text", width: 90, group: "meta" },
+  { key: "no", label: "NO", type: "readonly", width: 40, group: "meta" },
+  { key: "ticket", label: "티켓번호", type: "ticket", width: 64, group: "meta" },
   { key: "deploy", label: "배포", type: "select", options: OPTIONS.배포, width: 56, group: "meta" },
   { key: "major", label: "대분류", type: "select", options: MAJOR_CATEGORIES, width: 84, group: "classify" },
   { key: "minor", label: "중분류", type: "select-dependent", dependsOn: "major", map: MINOR_CATEGORY_MAP, width: 110, group: "classify" },
   { key: "kind", label: "구분", type: "select", options: OPTIONS.구분, width: 64, group: "classify" },
   { key: "priority", label: "중요도", type: "select", options: OPTIONS.중요도, width: 64, group: "classify" },
-  { key: "title", label: "업무명", type: "text", width: 260, group: "content" },
+  { key: "title", label: "업무명", type: "text", width: 300, group: "content" },
   { key: "detail", label: "업무상세", type: "textarea", width: 200, group: "content" },
   { key: "reqTeam", label: "요청팀(U+)", type: "text", width: 130, group: "requester" },
-  { key: "reqPerson", label: "요청자(U+)", type: "text", width: 90, group: "requester" },
-  { key: "pm", label: "접수자(ML)", type: "text", width: 80, group: "requester" },
+  { key: "reqPerson", label: "요청자(U+)", type: "text", width: 56, maxLength: 5, group: "requester" },
+  { key: "pm", label: "접수자(ML)", type: "text", width: 56, maxLength: 5, group: "requester" },
   { key: "planner", label: "기획", type: "select", options: ASSIGNEE_OPTIONS.기획, width: 76, group: "assignee" },
   { key: "designer", label: "디자인", type: "select", options: ASSIGNEE_OPTIONS.디자인, width: 76, group: "assignee" },
   { key: "publisher", label: "퍼블", type: "select", options: ASSIGNEE_OPTIONS.퍼블, width: 76, group: "assignee" },
-  { key: "developer", label: "개발", type: "text", width: 76, group: "assignee" },
-  { key: "ga", label: "GA", type: "text", width: 76, group: "assignee" },
+  { key: "developer", label: "개발", type: "text", width: 56, maxLength: 5, group: "assignee" },
+  { key: "ga", label: "GA", type: "select", options: GA_OPTIONS, width: 60, group: "assignee" },
   { key: "receivedDate", label: "접수일", type: "date", width: 108, group: "schedule" },
   { key: "startDate", label: "시작일", type: "date", width: 108, group: "schedule" },
   { key: "dueDate", label: "완료예정일", type: "date", width: 108, group: "schedule" },
   { key: "doneDate", label: "완료일", type: "date", width: 108, group: "schedule" },
   { key: "status", label: "진행현황", type: "select", options: OPTIONS.진행현황, width: 76, group: "schedule" },
   { key: "reviewed", label: "검수(U+)", type: "select", options: OPTIONS.검수여부, width: 72, group: "schedule" },
-  { key: "hPlanner", label: "기획(H)", type: "number", width: 64, group: "hours" },
-  { key: "hDesigner", label: "디자인(H)", type: "number", width: 64, group: "hours" },
-  { key: "hPublisher", label: "퍼블(H)", type: "number", width: 64, group: "hours" },
-  { key: "hGa", label: "GA(H)", type: "number", width: 64, group: "hours" },
-  { key: "hPm", label: "PM(H)", type: "number", width: 64, group: "hours" },
-  { key: "hTotal", label: "총합(H)", type: "readonly", width: 68, group: "hours" },
-  { key: "mm", label: "MM", type: "readonly", width: 64, group: "hours" },
-  { key: "note", label: "비고", type: "textarea", width: 160, group: "note" },
-  { key: "slaSchedule", label: "일정준수", type: "select", options: OPTIONS.만족도, width: 76, group: "sla" },
-  { key: "slaQuality", label: "품질만족", type: "select", options: OPTIONS.만족도, width: 76, group: "sla" },
-  { key: "slaCommunication", label: "의사소통", type: "select", options: OPTIONS.만족도, width: 76, group: "sla" },
-  { key: "slaAttitude", label: "업무태도", type: "select", options: OPTIONS.만족도, width: 76, group: "sla" },
-  { key: "slaCompetence", label: "업무능력", type: "select", options: OPTIONS.만족도, width: 76, group: "sla" }
+  { key: "hPlanner", label: "기획(H)", type: "number", width: 44, group: "hours" },
+  { key: "hDesigner", label: "디자인(H)", type: "number", width: 44, group: "hours" },
+  { key: "hPublisher", label: "퍼블(H)", type: "number", width: 44, group: "hours" },
+  { key: "hGa", label: "GA(H)", type: "number", width: 44, group: "hours" },
+  { key: "hPm", label: "PM(H)", type: "number", width: 44, group: "hours" },
+  { key: "hTotal", label: "총합(H)", type: "readonly", width: 48, group: "hours" },
+  { key: "mm", label: "MM", type: "readonly", width: 48, group: "hours" },
+  { key: "note", label: "비고", type: "textarea", width: 160, group: "note" }
 ];
 
 function emptyTask() {
@@ -101,15 +98,19 @@ function emptyTask() {
     receivedDate: "", startDate: "", dueDate: "", doneDate: "",
     status: "", reviewed: "",
     hPlanner: "", hDesigner: "", hPublisher: "", hGa: "", hPm: "",
-    note: "",
-    slaSchedule: "", slaQuality: "", slaCommunication: "", slaAttitude: "", slaCompetence: ""
+    note: ""
   };
+}
+
+// 티켓번호로 이동할 Redmine 이슈 URL 생성
+function redmineUrl(ticket) {
+  return `http://210.108.138.187/redmine/issues/${ticket}`;
 }
 
 // 브라우저(app.js)와 Node(Vercel API) 양쪽에서 사용할 수 있도록 export
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
     API_BASE, MAJOR_CATEGORIES, MINOR_CATEGORY_MAP, OPTIONS, EXCLUDED_STATUS,
-    ASSIGNEE_OPTIONS, DEFAULT_TARGET_MM, MM_HOURS, COLUMNS, emptyTask
+    ASSIGNEE_OPTIONS, GA_OPTIONS, DEFAULT_TARGET_MM, MM_HOURS, COLUMNS, emptyTask, redmineUrl
   };
 }

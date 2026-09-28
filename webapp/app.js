@@ -7,7 +7,7 @@ const state = {
   currentMonth: null,
   tasks: [],           // 현재 월의 업무 배열
   settings: { targetMM: { ...DEFAULT_TARGET_MM }, workDays: 20 },
-  view: "sheet",        // "sheet" | "summary"
+  view: "dashboard",    // "dashboard" | "sheet" | "summary"
   searchText: ""
 };
 
@@ -186,26 +186,33 @@ async function addMonth() {
 
 function bindGlobalControls() {
   document.getElementById("btnAddRow").onclick = addRow;
+  document.getElementById("btnDashboardView").onclick = () => setView("dashboard");
   document.getElementById("btnSummaryView").onclick = () => setView("summary");
   document.getElementById("btnSheetView").onclick = () => setView("sheet");
   document.getElementById("btnSettings").onclick = openSettings;
   document.getElementById("searchInput").oninput = (e) => { state.searchText = e.target.value; renderSheet(); };
   document.getElementById("btnExport").onclick = exportCsv;
+  document.getElementById("btnDashRefresh").onclick = renderDashboard;
 }
 
 function setView(view) {
   state.view = view;
+  document.getElementById("btnDashboardView").classList.toggle("active", view === "dashboard");
   document.getElementById("btnSheetView").classList.toggle("active", view === "sheet");
   document.getElementById("btnSummaryView").classList.toggle("active", view === "summary");
+  document.getElementById("dashboardPanel").style.display = view === "dashboard" ? "block" : "none";
   document.getElementById("sheetPanel").style.display = view === "sheet" ? "block" : "none";
   document.getElementById("summaryPanel").style.display = view === "summary" ? "block" : "none";
+  document.getElementById("sheetToolsGroup").style.display = view === "sheet" ? "flex" : "none";
   if (view === "summary") renderSummary();
+  if (view === "dashboard") renderDashboard();
 }
 
 function renderAll() {
   renderMonthTabs();
   renderSheet();
   if (state.view === "summary") renderSummary();
+  if (state.view === "dashboard") renderDashboard();
 }
 
 // ---------------- Row CRUD ----------------
@@ -218,6 +225,7 @@ async function addRow() {
   await persistTasks(state.currentMonth, state.tasks);
   await apiCreateTask(state.currentMonth, t);
   renderSheet();
+  renderDashboard();
 }
 
 async function deleteRow(id) {
@@ -227,6 +235,7 @@ async function deleteRow(id) {
   await persistTasks(state.currentMonth, state.tasks);
   await apiDeleteTask(state.currentMonth, id);
   renderSheet();
+  renderDashboard();
 }
 
 async function updateField(id, key, value) {
@@ -242,6 +251,9 @@ async function updateField(id, key, value) {
   }
   await persistTasks(state.currentMonth, state.tasks);
   await apiUpdateTask(state.currentMonth, id, t);
+  // 대분류 변경(중분류 옵션 갱신) · 시간 입력(총합/MM 갱신) 등은 화면을 다시 그려야 반영됩니다.
+  renderSheet();
+  renderDashboard();
 }
 
 // ---------------- Sheet (업무현황) rendering ----------------
@@ -249,7 +261,7 @@ async function updateField(id, key, value) {
 function groupLabel(group) {
   return ({
     meta: "관리", classify: "업무 분류", content: "업무 내용", requester: "요청",
-    assignee: "업무 담당자", schedule: "일정", hours: "업무투입", note: "비고", sla: "SLA 평가"
+    assignee: "업무 담당자", schedule: "일정", hours: "업무투입", note: "비고"
   })[group] || group;
 }
 
@@ -320,6 +332,32 @@ function renderCell(task, col) {
     span.textContent = col.key === "mm" ? (task.mm ?? 0) : (task[col.key] ?? "");
     return span;
   }
+  if (col.type === "ticket") {
+    const wrap = document.createElement("div");
+    wrap.className = "ticket-cell";
+    const inp = document.createElement("input");
+    inp.type = "text";
+    inp.inputMode = "numeric";
+    inp.placeholder = "번호";
+    inp.value = task.ticket || "";
+    inp.oninput = () => { inp.value = inp.value.replace(/[^0-9]/g, ""); };
+    inp.onchange = () => updateField(task.id, "ticket", inp.value);
+    const link = document.createElement("a");
+    link.className = "ticket-link";
+    link.textContent = "↗";
+    link.title = "Redmine 이슈로 이동";
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    if (task.ticket) {
+      link.href = redmineUrl(task.ticket);
+    } else {
+      link.classList.add("disabled");
+      link.href = "javascript:void(0)";
+    }
+    wrap.appendChild(inp);
+    wrap.appendChild(link);
+    return wrap;
+  }
   if (col.type === "select") {
     const sel = document.createElement("select");
     sel.appendChild(new Option("", ""));
@@ -363,6 +401,7 @@ function renderCell(task, col) {
   const inp = document.createElement("input");
   inp.type = "text";
   inp.value = task[col.key] || "";
+  if (col.maxLength) inp.maxLength = col.maxLength;
   inp.onchange = () => updateField(task.id, col.key, inp.value);
   return inp;
 }
@@ -378,7 +417,6 @@ function renderSummary() {
   renderCountTable();
   renderMMTable();
   renderDetailMMTable();
-  renderSlaTable();
 }
 
 function renderCountTable() {
@@ -455,22 +493,193 @@ function renderDetailMMTable() {
   el.innerHTML = html;
 }
 
-const SLA_SCORE = { "매우만족": 5, "만족": 4, "보통": 3, "미흡": 2, "매우미흡": 1 };
-const SLA_KEYS = { 일정준수: "slaSchedule", 품질만족: "slaQuality", 의사소통: "slaCommunication", 업무태도: "slaAttitude", 업무능력: "slaCompetence" };
+// ---------------- Dashboard rendering ----------------
 
-function renderSlaTable() {
-  const el = document.getElementById("slaTable");
-  const items = Object.keys(SLA_KEYS);
-  let html = `<h3>업무별 SLA 평가</h3><table class="summary-table"><thead><tr><th>평가항목</th><th>건수(월)</th><th>평가 결과(평균)</th><th>평가 등급</th></tr></thead><tbody>`;
-  items.forEach(item => {
-    const key = SLA_KEYS[item];
-    const rated = state.tasks.filter(t => t[key]);
-    const avg = rated.length ? rated.reduce((a, t) => a + (SLA_SCORE[t[key]] || 0), 0) / rated.length : null;
-    const grade = avg === null ? "-" : avg >= 4.5 ? "매우만족" : avg >= 3.5 ? "만족" : avg >= 2.5 ? "보통" : avg >= 1.5 ? "미흡" : "매우미흡";
-    html += `<tr><td>${item}</td><td>${rated.length}</td><td>${avg === null ? "-" : avg.toFixed(2)}</td><td>${grade}</td></tr>`;
+function escapeHtml(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function daysBetween(fromStr, toStr) {
+  const a = new Date(fromStr + "T00:00:00");
+  const b = new Date(toStr + "T00:00:00");
+  return Math.round((b - a) / 86400000);
+}
+
+function ddayLabel(dueDate) {
+  const diff = daysBetween(todayStr(), dueDate); // 오늘 -> 마감일
+  if (diff === 0) return "D-DAY";
+  if (diff > 0) return `D-${diff}`;
+  return `D+${Math.abs(diff)}`; // 지연
+}
+
+const WEEKDAY_KOR = ["일", "월", "화", "수", "목", "금", "토"];
+
+function addDays(dateStr, n) {
+  const d = new Date(dateStr + "T00:00:00");
+  d.setDate(d.getDate() + n);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+// 차주(다음 주 월요일~일요일) 범위 계산
+function nextWeekRange() {
+  const today = todayStr();
+  const dow = new Date(today + "T00:00:00").getDay(); // 0=일 ... 6=토
+  const daysUntilNextMonday = ((8 - dow) % 7) || 7;
+  const start = addDays(today, daysUntilNextMonday);
+  const end = addDays(start, 6);
+  return { start, end };
+}
+
+function formatDateWithWeekday(dateStr) {
+  const dow = new Date(dateStr + "T00:00:00").getDay();
+  const md = dateStr.slice(5).replace("-", "/");
+  return `${md}(${WEEKDAY_KOR[dow]})`;
+}
+
+function pillHtml(text, tone) {
+  return `<span class="pill pill-${tone || "neutral"}">${text}</span>`;
+}
+
+function statusTone(status) {
+  if (status === "완료") return "done";
+  if (status === "취소") return "muted";
+  if (status === "진행" || status === "개발" || status === "검수") return "active";
+  if (status === "보류") return "muted";
+  return "wait";
+}
+
+function priorityTone(p) {
+  if (p === "긴급") return "urgent";
+  if (p === "상") return "warn";
+  return "neutral";
+}
+
+function barRow(label, value, max, opts) {
+  opts = opts || {};
+  const pct = max > 0 ? Math.min(100, (value / max) * 100) : 0;
+  const valueText = opts.format ? opts.format(value) : value;
+  return `
+    <div class="bar-row">
+      <span class="bar-label">${label}</span>
+      <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
+      <span class="bar-value">${valueText}</span>
+    </div>`;
+}
+
+function renderDashboard() {
+  const tasks = state.tasks;
+  const today = todayStr();
+
+  const total = tasks.length;
+  const inProgress = tasks.filter(t => t.status === "진행").length;
+  const done = tasks.filter(t => t.status === "완료").length;
+  const overdue = tasks.filter(t => t.dueDate && t.dueDate < today && !["완료", "취소"].includes(t.status)).length;
+
+  const mmTasks = tasks.filter(t => t.major !== "SI");
+  const hourSums = sumHoursByRole(mmTasks);
+  const mmByRole = {}; ROLES.forEach(r => { mmByRole[r] = hourSums[r] / MM_HOURS; });
+  const mmTotal = ROLES.reduce((a, r) => a + mmByRole[r], 0);
+  const targetTotal = ROLES.reduce((a, r) => a + num(state.settings.targetMM[r]), 0);
+  const utilRate = targetTotal ? (mmTotal / targetTotal * 100) : 0;
+
+  document.getElementById("dashTitle").textContent = `대시보드 · 업무현황_${state.currentMonth}`;
+
+  // KPI 카드
+  const kpis = [
+    { label: "전체 업무", value: `${total}건` },
+    { label: "진행중", value: `${inProgress}건` },
+    { label: "완료", value: `${done}건` },
+    { label: "지연(마감 초과)", value: `${overdue}건`, warn: overdue > 0 },
+    { label: "이번 달 투입 MM", value: `${mmTotal.toFixed(2)} / ${targetTotal.toFixed(2)}`, sub: `투입률 ${utilRate.toFixed(0)}%` }
+  ];
+  document.getElementById("dashKpis").innerHTML = kpis.map(k => `
+    <div class="kpi-card ${k.warn ? "kpi-warn" : ""}">
+      <div class="kpi-value">${k.value}</div>
+      <div class="kpi-label">${k.label}</div>
+      ${k.sub ? `<div class="kpi-sub">${k.sub}</div>` : ""}
+    </div>`).join("");
+
+  // 상태별 현황
+  const statuses = OPTIONS.진행현황;
+  const statusCounts = statuses.map(s => tasks.filter(t => t.status === s).length);
+  const maxStatus = Math.max(1, ...statusCounts);
+  document.getElementById("dashStatusCard").innerHTML =
+    `<h3>진행현황별 업무</h3>` + statuses.map((s, i) => barRow(s, statusCounts[i], maxStatus)).join("");
+
+  // 대분류별 현황
+  const majorCounts = MAJOR_CATEGORIES.map(m => tasks.filter(t => t.major === m).length);
+  const maxMajor = Math.max(1, ...majorCounts);
+  document.getElementById("dashCategoryCard").innerHTML =
+    `<h3>대분류별 업무</h3>` + MAJOR_CATEGORIES.map((m, i) => barRow(m, majorCounts[i], maxMajor)).join("");
+
+  // 직무별 투입 MM (기준 대비 %)
+  document.getElementById("dashMMCard").innerHTML =
+    `<h3>직무별 투입 MM (기준 대비)</h3>` + ROLES.map(r => {
+      const target = num(state.settings.targetMM[r]);
+      const rate = target ? (mmByRole[r] / target * 100) : 0;
+      return barRow(r, rate, 100, { format: () => `${mmByRole[r].toFixed(2)} / ${target} MM (${rate.toFixed(0)}%)` });
+    }).join("");
+
+  // 요청자별 업무현황 (요청자(U+) 기준, 미입력 제외, 건수 상위 8명)
+  const reqCounts = {};
+  tasks.forEach(t => {
+    const name = (t.reqPerson || "").trim();
+    if (!name) return;
+    reqCounts[name] = (reqCounts[name] || 0) + 1;
   });
-  html += "</tbody></table>";
-  el.innerHTML = html;
+  const reqEntries = Object.entries(reqCounts).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  const maxReq = Math.max(1, ...reqEntries.map(e => e[1]));
+  document.getElementById("dashRequesterCard").innerHTML =
+    `<h3>요청자별 업무현황</h3>` + (reqEntries.length
+      ? reqEntries.map(([name, cnt]) => barRow(escapeHtml(name), cnt, maxReq, { format: v => `${v}건` })).join("")
+      : `<p class="dash-empty">요청자 정보가 입력된 업무가 없습니다.</p>`);
+
+  // 마감임박 · 지연 업무 (완료/취소 제외, 마감일 있는 건 중 오늘 이후 3일 이내 또는 이미 지난 건)
+  const dueSoon = tasks
+    .filter(t => t.dueDate && !["완료", "취소"].includes(t.status))
+    .filter(t => daysBetween(today, t.dueDate) <= 3)
+    .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
+    .slice(0, 8);
+  document.getElementById("dashDueCard").innerHTML =
+    `<h3>마감임박 · 지연 업무</h3>` + (dueSoon.length ? `<div class="dash-list">${dueSoon.map(t => `
+      <div class="dash-list-row">
+        <span class="dday ${t.dueDate < today ? "dday-over" : ""}">${ddayLabel(t.dueDate)}</span>
+        <span class="dash-list-title">${escapeHtml(t.title) || "(업무명 미입력)"}</span>
+        ${pillHtml(t.status || "-", statusTone(t.status))}
+      </div>`).join("")}</div>` : `<p class="dash-empty">임박한 마감 업무가 없습니다.</p>`);
+
+  // 긴급/상 중요도 미해결 업무
+  const urgent = tasks
+    .filter(t => ["긴급", "상"].includes(t.priority) && !["완료", "취소"].includes(t.status))
+    .sort((a, b) => (a.priority === b.priority ? 0 : a.priority === "긴급" ? -1 : 1))
+    .slice(0, 8);
+  document.getElementById("dashUrgentCard").innerHTML =
+    `<h3>긴급 · 상 미해결 업무</h3>` + (urgent.length ? `<div class="dash-list">${urgent.map(t => `
+      <div class="dash-list-row">
+        ${pillHtml(t.priority, priorityTone(t.priority))}
+        <span class="dash-list-title">${escapeHtml(t.title) || "(업무명 미입력)"}</span>
+        ${pillHtml(t.status || "-", statusTone(t.status))}
+      </div>`).join("")}</div>` : `<p class="dash-empty">긴급·상 미해결 업무가 없습니다.</p>`);
+
+  // 차주(다음 주 월~일) 예정업무 — 완료예정일이 다음 주 범위에 들어오는 업무
+  const { start: nwStart, end: nwEnd } = nextWeekRange();
+  const nextWeekTasks = tasks
+    .filter(t => t.dueDate && t.dueDate >= nwStart && t.dueDate <= nwEnd && !["완료", "취소"].includes(t.status))
+    .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+  document.getElementById("dashNextWeekCard").innerHTML =
+    `<h3>차주 예정업무 (${formatDateWithWeekday(nwStart)} ~ ${formatDateWithWeekday(nwEnd)})</h3>` +
+    (nextWeekTasks.length ? `<div class="dash-list">${nextWeekTasks.map(t => `
+      <div class="dash-list-row">
+        <span class="dday">${formatDateWithWeekday(t.dueDate)}</span>
+        <span class="dash-list-title">${escapeHtml(t.title) || "(업무명 미입력)"}</span>
+        ${t.priority ? pillHtml(t.priority, priorityTone(t.priority)) : ""}
+        ${pillHtml(t.status || "-", statusTone(t.status))}
+      </div>`).join("")}</div>` : `<p class="dash-empty">차주로 예정된 업무가 없습니다.</p>`);
 }
 
 // ---------------- Settings modal ----------------
@@ -505,6 +714,7 @@ function openSettings() {
     await saveSettings(state.currentMonth, state.settings);
     modal.style.display = "none";
     renderSummary();
+    renderDashboard();
   };
 }
 
