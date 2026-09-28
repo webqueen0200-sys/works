@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>업무관리 시트 · 디지털커뮤니케이션스팀</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<header class="app-header">
+  <div class="brand">
+    <span class="brand-mark">▤</span>
+    <div class="brand-text">
+      <h1>업무관리 시트</h1>
+      <p>디지털커뮤니케이션스팀 · 웹 운영</p>
+    </div>
+  </div>
+  <div id="apiModeLabel" class="api-mode"></div>
+</header>
+
+<nav id="monthTabs" class="month-tabs"></nav>
+
+<div class="toolbar">
+  <div class="toolbar-left">
+    <button id="btnSheetView" class="tab-btn active">업무현황</button>
+    <button id="btnSummaryView" class="tab-btn">요약</button>
+  </div>
+  <div class="toolbar-right">
+    <input id="searchInput" type="text" placeholder="업무명 · 업무상세 · 티켓번호 검색" />
+    <span id="rowCount" class="row-count"></span>
+    <button id="btnAddRow" class="btn btn-primary">+ 행 추가</button>
+    <button id="btnExport" class="btn">CSV 내보내기</button>
+    <button id="btnSettings" class="btn">기준 설정</button>
+  </div>
+</div>
+
+<main>
+  <section id="sheetPanel" class="panel">
+    <div class="table-scroll">
+      <table id="sheetTable">
+        <thead>
+          <tr id="theadGroup"></tr>
+          <tr id="theadCols"></tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="summaryPanel" class="panel" style="display:none">
+    <div class="summary-grid">
+      <div id="countTable" class="summary-card"></div>
+      <div id="mmTable" class="summary-card"></div>
+      <div id="detailMMTable" class="summary-card wide"></div>
+      <div id="slaTable" class="summary-card"></div>
+    </div>
+  </section>
+</main>
+
+<div id="settingsModal" class="modal">
+  <div class="modal-box">
+    <h2>기준 설정</h2>
+    <div id="settingsForm"></div>
+    <div class="modal-actions">
+      <button id="btnSettingsClose" class="btn">닫기</button>
+      <button id="btnSettingsSave" class="btn btn-primary">저장</button>
+    </div>
+  </div>
+</div>
+
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
