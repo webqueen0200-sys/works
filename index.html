@@ -1,117 +1,96 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Works · 디지털커뮤니케이션스팀</title>
-  <meta name="description" content="업무 보드 및 대시보드 목차">
-  <meta name="theme-color" content="#1f2a44">
-  <style>
-    :root {
-      --ink: #1f2a44;
-      --muted: #5b6475;
-      --line: #e3e6ec;
-      --bg: #f6f7f9;
-      --surface: #ffffff;
-      --accent: #e6007e;
-    }
-    * { box-sizing: border-box; }
-    html { background: var(--bg); }
-    body {
-      margin: 0;
-      font-family: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
-      color: var(--ink);
-      line-height: 1.55;
-      font-size: 15px;
-    }
-    main { max-width: 880px; margin: 0 auto; padding: 56px 20px 72px; }
-    header { display: flex; flex-direction: column; gap: 8px; padding-bottom: 28px; border-bottom: 2px solid var(--ink); }
-    .eyebrow { margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .08em; color: var(--accent); text-transform: uppercase; }
-    h1 { margin: 0; font-size: 30px; letter-spacing: -.02em; }
-    header p { margin: 0; color: var(--muted); }
-    section { display: flex; flex-direction: column; gap: 12px; margin-top: 40px; }
-    h2 { margin: 0; font-size: 14px; font-weight: 700; color: var(--muted); }
-    ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; grid-template-columns: 1fr; }
-    @media (min-width: 640px) { ul { grid-template-columns: 1fr 1fr; } }
-    a.card {
-      display: flex; flex-direction: column; gap: 4px;
-      padding: 18px 20px; height: 100%;
-      background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
-      color: inherit; text-decoration: none;
-      transition: border-color .15s, transform .15s;
-    }
-    a.card:hover, a.card:focus-visible { border-color: var(--ink); transform: translateY(-1px); outline: none; }
-    a.card:focus-visible { box-shadow: 0 0 0 3px rgba(230, 0, 126, .25); }
-    .title { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-weight: 700; font-size: 16px; }
-    .title span[aria-hidden] { color: var(--accent); }
-    .desc { color: var(--muted); font-size: 14px; }
-    .path { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--muted); }
-    footer { margin-top: 56px; color: var(--muted); font-size: 13px; }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>2026 업무관리</title>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css" />
+<link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <main>
-    <header>
-      <p class="eyebrow">Works</p>
-      <h1>업무 보드</h1>
-      <p>업무관리, 운영 대시보드, 요청서·체크리스트를 한 곳에서 엽니다.</p>
-    </header>
 
-    <section aria-labelledby="sec-tools">
-      <h2 id="sec-tools">업무 도구</h2>
-      <ul>
-        <li>
-          <a class="card" href="./webapp/">
-            <span class="title">업무관리 시트 <span aria-hidden="true">&rarr;</span></span>
-            <span class="desc">월별 업무현황 입력과 요약·투입 MM 자동 계산</span>
-            <span class="path">/webapp/</span>
-          </a>
-        </li>
-        <li>
-          <a class="card" href="./checklist.html">
-            <span class="title">업무 요청 접수 · 검수 체크리스트 <span aria-hidden="true">&rarr;</span></span>
-            <span class="desc">요청 접수 템플릿과 통합 검수 항목</span>
-            <span class="path">/checklist.html</span>
-          </a>
-        </li>
-        <li>
-          <a class="card" href="./banner_260908.html">
-            <span class="title">배너 제작 요청서 <span aria-hidden="true">&rarr;</span></span>
-            <span class="desc">배너 제작 요청 양식</span>
-            <span class="path">/banner_260908.html</span>
-          </a>
-        </li>
-      </ul>
-    </section>
+<header class="app-header">
+  <div class="brand">
+    <span class="brand-mark">▤</span>
+    <div class="brand-text">
+      <h1>2026 업무관리</h1>
+    </div>
+  </div>
+  <div id="apiModeLabel" class="api-mode"></div>
+</header>
 
-    <section aria-labelledby="sec-dash">
-      <h2 id="sec-dash">운영 대시보드</h2>
-      <ul>
-        <li>
-          <a class="card" href="./board.html">
-            <span class="title">유플러스닷컴 기업·소상공인 <span aria-hidden="true">&rarr;</span></span>
-            <span class="desc">운영 대시보드 · 26년 8월</span>
-            <span class="path">/board.html</span>
-          </a>
-        </li>
-        <li>
-          <a class="card" href="./board_cus.html">
-            <span class="title">U+공식온라인스토어 <span aria-hidden="true">&rarr;</span></span>
-            <span class="desc">운영 대시보드 · 디지털사업</span>
-            <span class="path">/board_cus.html</span>
-          </a>
-        </li>
-        <li>
-          <a class="card" href="./%EC%9A%B4%EC%98%81%EB%8C%80%EC%8B%9C%EB%B3%B4%EB%93%9C_26%EB%85%848%EC%9B%94.html">
-            <span class="title">운영대시보드_26년8월 <span aria-hidden="true">&rarr;</span></span>
-            <span class="desc">유플러스닷컴 기업·소상공인 · 26년 8월 (보관본)</span>
-            <span class="path">/운영대시보드_26년8월.html</span>
-          </a>
-        </li>
-      </ul>
-    </section>
+<nav id="monthTabs" class="month-tabs"></nav>
 
-    <footer>webqueen0200-sys / works</footer>
-  </main>
+<div class="toolbar">
+  <div class="toolbar-left">
+    <button id="btnDashboardView" class="tab-btn active">대시보드</button>
+    <button id="btnSheetView" class="tab-btn">업무현황</button>
+    <button id="btnSummaryView" class="tab-btn">요약</button>
+  </div>
+  <div class="toolbar-right">
+    <div id="sheetToolsGroup" class="sheet-tools" style="display:none">
+      <input id="searchInput" type="text" placeholder="업무명 · 업무상세 · 티켓번호 검색" />
+      <span id="rowCount" class="row-count"></span>
+      <button id="btnAddRow" class="btn btn-primary">+ 행 추가</button>
+      <button id="btnExport" class="btn btn-ghost">CSV 내보내기</button>
+    </div>
+    <button id="btnSettings" class="btn btn-ghost">기준 설정</button>
+  </div>
+</div>
+
+<main>
+  <section id="dashboardPanel" class="panel">
+    <div class="dash-header">
+      <h2 id="dashTitle">대시보드</h2>
+      <button id="btnDashRefresh" class="btn btn-ghost">새로고침</button>
+    </div>
+    <div id="dashKpis" class="dash-kpis"></div>
+    <div class="dash-metrics">
+      <div id="dashStatusCard" class="summary-card"></div>
+      <div id="dashCategoryCard" class="summary-card"></div>
+      <div id="dashMMCard" class="summary-card"></div>
+      <div id="dashRequesterCard" class="summary-card"></div>
+    </div>
+    <div class="dash-lists">
+      <div id="dashUrgentCard" class="summary-card"></div>
+      <div id="dashDueCard" class="summary-card"></div>
+      <div id="dashNextWeekCard" class="summary-card"></div>
+    </div>
+  </section>
+
+  <section id="sheetPanel" class="panel" style="display:none">
+    <div class="table-scroll">
+      <table id="sheetTable">
+        <thead>
+          <tr id="theadGroup"></tr>
+          <tr id="theadCols"></tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="summaryPanel" class="panel" style="display:none">
+    <div class="summary-grid">
+      <div id="countTable" class="summary-card"></div>
+      <div id="mmTable" class="summary-card"></div>
+      <div id="detailMMTable" class="summary-card wide"></div>
+    </div>
+  </section>
+</main>
+
+<div id="settingsModal" class="modal">
+  <div class="modal-box">
+    <h2>기준 설정</h2>
+    <div id="settingsForm"></div>
+    <div class="modal-actions">
+      <button id="btnSettingsClose" class="btn btn-ghost">닫기</button>
+      <button id="btnSettingsSave" class="btn btn-primary">저장</button>
+    </div>
+  </div>
+</div>
+
+<script src="config.js"></script>
+<script src="app.js"></script>
 </body>
 </html>
