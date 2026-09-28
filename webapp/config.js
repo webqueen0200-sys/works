@@ -5,7 +5,7 @@
 
 // 배포용 API 베이스 URL. Vercel에 배포한 뒤 여기 본인의 API 주소를 넣으세요.
 // 비워두면(빈 문자열) 브라우저 localStorage에 저장되는 데모 모드로 동작합니다.
-const API_BASE = ""; // 예: "https://your-project.vercel.app"
+const API_BASE = "https://works-beige.vercel.app/"; // 예: "https://your-project.vercel.app"
 
 // 대분류
 const MAJOR_CATEGORIES = ["기업", "소상공인", "GA", "공통", "SI"];
