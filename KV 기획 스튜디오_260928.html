@@ -1,0 +1,687 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>KV 기획 스튜디오</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --ink:#1E1420; --ink-soft:#4A3F4E; --paper:#FAF7FA; --surface:#FFFFFF; --surface-2:#F1EBF2;
+    --border:#E3DCE6; --accent:#E10E7A; --accent-ink:#FFFFFF; --accent-2:#6D3CE0;
+    --warn:#B8720A; --danger:#D6304B; --help-size:12px;
+    --shadow: 0 10px 30px -12px rgba(30,20,32,0.28);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ink:#F4EEF6; --ink-soft:#C9BFCE; --paper:#171019; --surface:#221A25; --surface-2:#2B2130;
+      --border:#3B2E3F; --accent:#FF3F93; --accent-ink:#1B0B14; --accent-2:#9B7BFF;
+      --warn:#F0A93B; --danger:#FF6B85; --shadow: 0 10px 30px -10px rgba(0,0,0,0.55);
+    }
+  }
+  :root[data-theme="dark"]{
+    --ink:#F4EEF6; --ink-soft:#C9BFCE; --paper:#171019; --surface:#221A25; --surface-2:#2B2130;
+    --border:#3B2E3F; --accent:#FF3F93; --accent-ink:#1B0B14; --accent-2:#9B7BFF;
+    --warn:#F0A93B; --danger:#FF6B85; --shadow: 0 10px 30px -10px rgba(0,0,0,0.55);
+  }
+  *{box-sizing:border-box;}
+  body{background:var(--paper); color:var(--ink); font-family:'IBM Plex Sans KR','Pretendard',-apple-system,sans-serif;}
+  .mono{font-family:'IBM Plex Mono',ui-monospace,monospace;}
+  h1,h2,h3{text-wrap:balance; margin:0;}
+  button{font-family:inherit; cursor:pointer;}
+  input,select,textarea{font-family:inherit; color:var(--ink);}
+
+  .app{max-width:1180px; margin:0 auto; padding:28px 24px 64px;}
+
+  .topbar{display:flex; align-items:baseline; justify-content:space-between; gap:16px; margin-bottom:22px; flex-wrap:wrap;}
+  .topbar .brand{display:flex; flex-direction:column; gap:4px;}
+  .brand .eyebrow{font-size:var(--help-size); letter-spacing:.08em; color:var(--accent); font-weight:600;}
+  .brand h1{font-size:26px; font-weight:700;}
+  .brand p{margin:2px 0 0; color:var(--ink-soft); font-size:14px;}
+  .topbar .date{font-size:var(--help-size); color:var(--ink-soft); background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:6px 10px;}
+
+  .layout{display:grid; grid-template-columns:340px 1fr; gap:20px; align-items:start;}
+  @media (max-width:860px){ .layout{grid-template-columns:1fr;} }
+
+  .panel{background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:18px;}
+
+  .tabs{display:flex; flex-direction:column; gap:6px;}
+  .tab{display:flex; align-items:center; justify-content:space-between; gap:8px; padding:10px 12px; border-radius:10px; border:1px solid transparent; background:transparent; text-align:left;}
+  .tab:hover{background:var(--surface-2);}
+  .tab.active{background:var(--surface-2); border-color:var(--border);}
+  .tab .t-main{display:flex; flex-direction:column; gap:1px;}
+  .tab .t-label{font-size:14px; font-weight:600;}
+  .tab .t-sub{font-size:var(--help-size); color:var(--ink-soft);}
+  .tab .t-size{font-size:11px; color:var(--ink-soft);}
+  .tab.active .t-label{color:var(--accent);}
+  .tab-dot{width:6px; height:6px; border-radius:50%; background:var(--accent); opacity:0; flex:none;}
+  .tab.active .tab-dot{opacity:1;}
+
+  .section-title{font-size:11px; letter-spacing:.08em; color:var(--ink-soft); font-weight:600; margin:18px 0 10px; text-transform:uppercase;}
+  .section-title:first-child{margin-top:0;}
+
+  .field{margin-bottom:14px;}
+  .field label{display:flex; justify-content:space-between; align-items:baseline; font-size:13px; font-weight:600; margin-bottom:6px;}
+  .field .count{font-size:var(--help-size); color:var(--ink-soft);}
+  .field .count.warn{color:var(--warn);}
+  .field .count.full{color:var(--danger); font-weight:600;}
+  .field input, .field select{width:100%; padding:9px 10px; border-radius:9px; border:1px solid var(--border); background:var(--paper); font-size:14px;}
+  .field input:focus, .field select:focus{outline:2px solid var(--accent); outline-offset:1px;}
+  .field .help{font-size:var(--help-size); color:var(--ink-soft); margin-top:5px;}
+
+  .guide-note{display:flex; gap:8px; align-items:flex-start; background:var(--surface-2); border:1px solid var(--border); border-radius:10px; padding:10px 12px; font-size:var(--help-size); color:var(--ink-soft); margin-bottom:14px;}
+  .guide-note b{color:var(--ink);}
+
+  .preview-top{display:flex; align-items:center; justify-content:flex-start; gap:14px; margin-bottom:14px; flex-wrap:wrap;}
+  .toggle{display:inline-flex; background:var(--surface-2); border:1px solid var(--border); border-radius:999px; padding:3px; gap:2px;}
+  .toggle button{border:none; background:transparent; padding:7px 16px; border-radius:999px; font-size:13px; font-weight:600; color:var(--ink-soft);}
+  .toggle button.active{background:var(--accent); color:var(--accent-ink);}
+  .size-chip{font-size:12px; color:var(--ink-soft); background:var(--surface-2); border:1px solid var(--border); padding:6px 12px; border-radius:999px;}
+
+  .stage-wrap{display:flex; justify-content:center; padding:26px; background:var(--surface-2);
+    border-radius:14px; border:1px solid var(--border);}
+  #stage{max-width:100%; box-shadow:var(--shadow); border-radius:4px;}
+
+  .upload-row{display:flex; align-items:center; gap:10px; margin-top:14px; flex-wrap:wrap;}
+  .btn{padding:10px 16px; border-radius:10px; border:1px solid var(--border); background:var(--surface-2); font-size:13px; font-weight:600; color:var(--ink);}
+  .btn:hover{border-color:var(--accent);}
+  .btn.primary{background:var(--accent); color:var(--accent-ink); border-color:var(--accent);}
+  .btn.ghost{background:transparent;}
+  .file-label{display:inline-flex; align-items:center; gap:8px;}
+  .file-name{font-size:var(--help-size); color:var(--ink-soft);}
+
+  .actions{display:flex; gap:10px; margin-top:18px; flex-wrap:wrap;}
+
+  .request-box{margin-top:18px;}
+  .request-box textarea{width:100%; min-height:170px; resize:vertical; background:var(--paper); border:1px solid var(--border); border-radius:10px; padding:12px; font-size:12.5px; line-height:1.6; color:var(--ink-soft);}
+
+  .ref-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:10px; margin-top:16px;}
+  .ref-card{border:1px solid var(--border); border-radius:10px; padding:10px 12px; background:var(--paper);}
+  .ref-card .k{font-size:11px; color:var(--ink-soft); margin-bottom:3px;}
+  .ref-card a{font-size:12.5px; color:var(--accent); text-decoration:none; word-break:break-all;}
+  .ref-card a:hover{text-decoration:underline;}
+  .frame-chip{display:inline-flex; align-items:center; gap:6px; background:var(--surface-2); border:1px solid var(--border); border-radius:8px; padding:6px 10px; font-size:12.5px; margin-top:2px;}
+
+  .toast{position:fixed; left:50%; bottom:26px; transform:translate(-50%,0); background:var(--ink); color:var(--paper); padding:10px 18px; border-radius:999px; font-size:13px; opacity:0; pointer-events:none; transition:opacity .2s ease, transform .2s ease;}
+  .toast.show{opacity:1; transform:translate(-50%,-6px);}
+
+  .footnote{margin-top:26px; font-size:var(--help-size); color:var(--ink-soft); line-height:1.7;}
+</style>
+
+<div class="app">
+  <div class="topbar">
+    <div class="brand">
+      <span class="eyebrow">MEDIALOG AX · CONTENT OPS</span>
+      <h1>KV 기획 스튜디오</h1>
+      <p>메인 Key Visual 3종의 문구를 기획하고, PC/Mobile 미리보기와 PNG를 뽑는 도구</p>
+    </div>
+    <div class="date mono" id="todayLabel"></div>
+  </div>
+
+  <div class="layout">
+    <!-- LEFT: type selector + form -->
+    <div class="panel">
+      <div class="section-title">KV 종류 선택</div>
+      <div class="tabs" id="tabs"></div>
+
+      <div class="section-title">문구 입력</div>
+      <div id="formFields"></div>
+    </div>
+
+    <!-- RIGHT: preview + actions -->
+    <div class="panel">
+      <div class="preview-top">
+        <div class="toggle" id="deviceToggle">
+          <button data-device="pc">PC</button>
+          <button data-device="mw">Mobile</button>
+        </div>
+        <span class="size-chip mono" id="sizeChip"></span>
+      </div>
+
+      <div class="stage-wrap">
+        <canvas id="stage"></canvas>
+      </div>
+
+      <div class="upload-row">
+        <label class="btn file-label">
+          이미지 업로드
+          <input type="file" accept="image/*" id="imageInput" style="display:none;">
+        </label>
+        <span class="file-name" id="fileName">아직 업로드된 이미지가 없어요 (미리보기는 플레이스홀더로 표시돼요)</span>
+        <button class="btn ghost" id="clearImage" style="display:none;">이미지 제거</button>
+      </div>
+
+      <div class="actions">
+        <button class="btn primary" id="copyBtn">요청 내용 복사</button>
+        <button class="btn" id="downloadPC">PC PNG 다운로드</button>
+        <button class="btn" id="downloadMW">Mobile PNG 다운로드 (2x)</button>
+      </div>
+
+      <div class="request-box">
+        <div class="section-title">복사될 요청 내용</div>
+        <textarea id="requestText" readonly></textarea>
+      </div>
+
+      <div class="ref-grid" id="refGrid"></div>
+    </div>
+  </div>
+
+  <p class="footnote">
+    · 미리보기는 <span class="mono">-공통-BANNER</span> 파일의 실제 KV1(상품)·KV2(고객사례)·KV3(인사이트) 프레임 스펙(색상·폰트·좌표)을 그대로 따라 그렸어요.<br>
+    · 문구를 정리한 뒤 <span class="mono">-공통-콘텐츠 기획안_2026</span> 파일에 아래 프레임명으로 프레임을 만들어 붙여넣어 주세요.
+  </p>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  var GUIDE = {
+    overview: "https://www.figma.com/design/tso3fxcNe8Oa92dWM2Um7J/-%EA%B3%B5%ED%86%B5--BANNER?node-id=983-13656&t=1JoOsON1k4PBRXwO-4",
+    kv1: "https://www.figma.com/design/tso3fxcNe8Oa92dWM2Um7J/-%EA%B3%B5%ED%86%B5--BANNER?node-id=1891-3146&t=1JoOsON1k4PBRXwO-4",
+    kv2: "https://www.figma.com/design/tso3fxcNe8Oa92dWM2Um7J/-%EA%B3%B5%ED%86%B5--BANNER?node-id=983-13662&t=1JoOsON1k4PBRXwO-4",
+    kv3: "https://www.figma.com/design/tso3fxcNe8Oa92dWM2Um7J/-%EA%B3%B5%ED%86%B5--BANNER?node-id=983-13886&t=1JoOsON1k4PBRXwO-4",
+    target: "https://www.figma.com/design/Wrz4F7R5PROyMqH4RDNspL/-%EA%B3%B5%ED%86%B5--%EC%BD%98%ED%85%90%EC%B8%A0-%EA%B8%B0%ED%9A%8D%EC%95%88_2026?node-id=271-2&p=f&t=AlXLUBnrx6dMqUIN-0"
+  };
+
+  var KV_TYPES = [
+    {
+      id:"kv1", label:"메인 KV 1", sub:"KV상품 썸네일", variant:"product",
+      frameName:"메인KV1_설명",
+      sizePC:{w:708,h:572}, sizeMW:{w:320,h:258},
+      guideUrl:GUIDE.kv1, guideLabel:"KV1 (상품 썸네일) 가이드",
+      fields:[
+        {key:"category", label:"카테고리 라벨", max:6, placeholder:"추천 솔루션", def:"추천 솔루션"},
+        {key:"title", label:"타이틀 (상품·서비스명)", max:10, placeholder:"AICC클라우드"},
+        {key:"body", label:"소구포인트 (설명 문구)", max:40, placeholder:"맞춤형 AI 클라우드 컨택센터"},
+        {key:"cta", label:"바로가기 버튼 문구", max:10, placeholder:"상담 신청하기"}
+      ]
+    },
+    {
+      id:"kv2", label:"메인 KV 2", sub:"KV고객사례 썸네일", variant:"card",
+      frameName:"메인KV2_설명",
+      sizePC:{w:708,h:274}, sizeMW:{w:320,h:140},
+      guideUrl:GUIDE.kv2, guideLabel:"KV2 (고객사례 썸네일) 가이드",
+      fields:[
+        {key:"category", label:"카테고리 태그", max:6, placeholder:"고객사례", def:"고객사례", options:["고객사례","블로그","뉴스레터","현직마케터 리포트"]},
+        {key:"title", label:"타이틀 (사례·아티클 제목)", max:34, placeholder:"U+커넥트를 사용하고 차량 관리 효율이 50% 이상 개선되었어요."}
+      ]
+    },
+    {
+      id:"kv3", label:"메인 KV 3", sub:"KV인사이트 썸네일", variant:"card",
+      frameName:"메인KV3_설명",
+      sizePC:{w:342,h:274}, sizeMW:{w:154,h:140},
+      guideUrl:GUIDE.kv3, guideLabel:"KV3 (인사이트 썸네일) 가이드",
+      fields:[
+        {key:"category", label:"카테고리 태그", max:6, placeholder:"보도자료", def:"보도자료", options:["보도자료","블로그","뉴스레터"]},
+        {key:"title", label:"타이틀 (인사이트 제목)", max:20, placeholder:"MWC26 기조 연설 나선 홍범식 CEO"}
+      ]
+    }
+  ];
+
+  var state = {};
+  KV_TYPES.forEach(function(t){
+    var s = {imageEl:null, imageName:""};
+    t.fields.forEach(function(f){ s[f.key] = f.def || ""; });
+    state[t.id] = s;
+  });
+
+  var currentTypeId = "kv1";
+  var currentDevice = "pc";
+
+  function getType(id){ for(var i=0;i<KV_TYPES.length;i++){ if(KV_TYPES[i].id===id) return KV_TYPES[i]; } return KV_TYPES[0]; }
+
+  // ---------- date ----------
+  function todayParts(){
+    var now = new Date();
+    var fmt = new Intl.DateTimeFormat("en-CA", {timeZone:"Asia/Seoul", year:"numeric", month:"2-digit", day:"2-digit"});
+    var parts = {};
+    fmt.formatToParts(now).forEach(function(p){ parts[p.type] = p.value; });
+    return parts;
+  }
+  var dp = todayParts();
+  var isoDate = dp.year + "-" + dp.month + "-" + dp.day;
+  var yymmdd = dp.year.slice(2) + dp.month + dp.day;
+  document.getElementById("todayLabel").textContent = "작성일 " + isoDate;
+
+  // ---------- toast ----------
+  var toastEl = document.getElementById("toast");
+  var toastTimer = null;
+  function toast(msg){
+    toastEl.textContent = msg;
+    toastEl.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ toastEl.classList.remove("show"); }, 2200);
+  }
+
+  // ---------- tabs ----------
+  var tabsEl = document.getElementById("tabs");
+  function renderTabs(){
+    tabsEl.innerHTML = "";
+    KV_TYPES.forEach(function(t){
+      var btn = document.createElement("button");
+      btn.className = "tab" + (t.id===currentTypeId ? " active" : "");
+      btn.innerHTML =
+        '<span class="t-main">' +
+          '<span class="t-label">' + t.label + '</span>' +
+          '<span class="t-sub">' + t.sub + '</span>' +
+        '</span>' +
+        '<span class="t-main" style="align-items:flex-end;">' +
+          '<span class="tab-dot"></span>' +
+          '<span class="t-size mono">' + t.sizePC.w + '×' + t.sizePC.h + '</span>' +
+        '</span>';
+      btn.addEventListener("click", function(){
+        currentTypeId = t.id;
+        renderAll();
+      });
+      tabsEl.appendChild(btn);
+    });
+  }
+
+  // ---------- form ----------
+  var formEl = document.getElementById("formFields");
+
+  function renderForm(){
+    var t = getType(currentTypeId);
+    var s = state[t.id];
+
+    formEl.innerHTML = "";
+    t.fields.forEach(function(f){
+      var wrap = document.createElement("div");
+      wrap.className = "field";
+
+      var label = document.createElement("label");
+      label.innerHTML = '<span>' + f.label + '</span><span class="count mono" data-count="' + f.key + '"></span>';
+      wrap.appendChild(label);
+
+      var input = document.createElement("input");
+      input.type = "text";
+      input.maxLength = f.max;
+      input.placeholder = f.placeholder || "";
+      input.value = s[f.key] || "";
+      input.dataset.key = f.key;
+      if(f.options){
+        var listId = "opts_" + t.id + "_" + f.key;
+        var dl = document.createElement("datalist");
+        dl.id = listId;
+        f.options.forEach(function(o){
+          var opt = document.createElement("option");
+          opt.value = o;
+          dl.appendChild(opt);
+        });
+        input.setAttribute("list", listId);
+        wrap.appendChild(dl);
+      }
+      input.addEventListener("input", function(){
+        state[currentTypeId][f.key] = input.value;
+        updateCount(f);
+        redrawCanvas();
+        updateRequestText();
+      });
+      wrap.appendChild(input);
+
+      var help = document.createElement("div");
+      help.className = "help";
+      help.textContent = "최대 " + f.max + "자" + (f.options ? " · 예시: " + f.options.join(" / ") : "");
+      wrap.appendChild(help);
+
+      formEl.appendChild(wrap);
+      updateCount(f);
+    });
+
+    function updateCount(f){
+      var el = formEl.querySelector('[data-count="' + f.key + '"]');
+      if(!el) return;
+      var len = (state[currentTypeId][f.key] || "").length;
+      el.textContent = len + "/" + f.max;
+      el.className = "count mono" + (len>=f.max ? " full" : (len>=f.max*0.8 ? " warn" : ""));
+    }
+  }
+
+  // ---------- reference cards ----------
+  var refGrid = document.getElementById("refGrid");
+  function renderRefs(){
+    var t = getType(currentTypeId);
+    refGrid.innerHTML =
+      '<div class="ref-card"><div class="k">구성 설명 가이드</div><a href="' + GUIDE.overview + '" target="_blank" rel="noopener">메인 KV 구성 설명 (Figma)</a></div>' +
+      '<div class="ref-card"><div class="k">이 타입 가이드</div><a href="' + t.guideUrl + '" target="_blank" rel="noopener">' + t.guideLabel + '</a></div>' +
+      '<div class="ref-card"><div class="k">문구 적용할 기획안 파일</div><a href="' + GUIDE.target + '" target="_blank" rel="noopener">콘텐츠 기획안_2026 (Figma)</a>' +
+        '<div class="frame-chip mono">프레임명: ' + t.frameName + '</div></div>';
+  }
+
+  // ---------- device toggle ----------
+  var deviceToggleEl = document.getElementById("deviceToggle");
+  deviceToggleEl.querySelectorAll("button").forEach(function(b){
+    b.addEventListener("click", function(){
+      currentDevice = b.dataset.device;
+      renderAll();
+    });
+  });
+  function renderDeviceToggle(){
+    deviceToggleEl.querySelectorAll("button").forEach(function(b){
+      b.classList.toggle("active", b.dataset.device===currentDevice);
+    });
+    var t = getType(currentTypeId);
+    var size = currentDevice==="pc" ? t.sizePC : t.sizeMW;
+    document.getElementById("sizeChip").textContent = (currentDevice==="pc"?"PC":"Mobile") + " · " + size.w + " × " + size.h + "px";
+  }
+
+  // ---------- image upload ----------
+  var imageInput = document.getElementById("imageInput");
+  var fileNameEl = document.getElementById("fileName");
+  var clearImageBtn = document.getElementById("clearImage");
+  imageInput.addEventListener("change", function(e){
+    var file = e.target.files && e.target.files[0];
+    if(!file) return;
+    var reader = new FileReader();
+    reader.onload = function(ev){
+      var img = new Image();
+      img.onload = function(){
+        state[currentTypeId].imageEl = img;
+        state[currentTypeId].imageName = file.name;
+        renderUploadRow();
+        redrawCanvas();
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+  clearImageBtn.addEventListener("click", function(){
+    state[currentTypeId].imageEl = null;
+    state[currentTypeId].imageName = "";
+    imageInput.value = "";
+    renderUploadRow();
+    redrawCanvas();
+  });
+  function renderUploadRow(){
+    var s = state[currentTypeId];
+    if(s.imageEl){
+      fileNameEl.textContent = s.imageName + " 적용됨";
+      clearImageBtn.style.display = "";
+    } else {
+      fileNameEl.textContent = "아직 업로드된 이미지가 없어요 (미리보기는 플레이스홀더로 표시돼요)";
+      clearImageBtn.style.display = "none";
+    }
+  }
+
+  // ---------- canvas drawing ----------
+  // Numbers below are taken directly from the Figma guide's real KV1 / KV2 / KV3
+  // frames (get_design_context), scaled by device height so PC and Mobile stay
+  // proportional to the guide.
+  var canvas = document.getElementById("stage");
+  var ctx = canvas.getContext("2d");
+
+  function coverImage(c,img,w,h){
+    var ir = img.width / img.height, tr = w / h, sx,sy,sw,sh;
+    if(ir > tr){ sh = img.height; sw = sh*tr; sx = (img.width-sw)/2; sy=0; }
+    else { sw = img.width; sh = sw/tr; sx=0; sy=(img.height-sh)/2; }
+    c.drawImage(img, sx, sy, sw, sh, 0, 0, w, h);
+  }
+
+  // Pale, flat placeholder — matches KV1's real background tone (product shots
+  // sit on light grey, not on a dark photo).
+  function drawPlaceholderLight(c,w,h){
+    c.fillStyle = "#E4E3E7";
+    c.fillRect(0,0,w,h);
+    c.fillStyle = "rgba(24,26,27,0.45)";
+    c.font = "600 " + Math.max(11,w*0.035) + "px 'IBM Plex Sans KR', sans-serif";
+    c.textAlign = "center"; c.textBaseline = "middle";
+    c.fillText("상품 이미지를 업로드해 주세요", w/2, h*0.32);
+    c.textAlign = "left"; c.textBaseline = "alphabetic";
+  }
+
+  // Moody neutral placeholder — matches KV2/KV3's real editorial photography
+  // (office / interview shots) so the white overlay text stays legible.
+  function drawPlaceholderDark(c,w,h){
+    var grad = c.createLinearGradient(0,0,w,h);
+    grad.addColorStop(0,"#3A3040");
+    grad.addColorStop(1,"#1C1620");
+    c.fillStyle = grad;
+    c.fillRect(0,0,w,h);
+    c.fillStyle = "rgba(255,255,255,0.55)";
+    c.font = "600 " + Math.max(10,h*0.055) + "px 'IBM Plex Sans KR', sans-serif";
+    c.textAlign = "center"; c.textBaseline = "middle";
+    c.fillText("이미지를 업로드해 주세요", w/2, h*0.62);
+    c.textAlign = "left"; c.textBaseline = "alphabetic";
+  }
+
+  function wrapLines(c,text,maxWidth,maxLines){
+    var chars = Array.from(text || "");
+    var lines = []; var cur = "";
+    for(var i=0;i<chars.length;i++){
+      var test = cur + chars[i];
+      if(c.measureText(test).width > maxWidth && cur.length>0){
+        lines.push(cur);
+        cur = chars[i];
+        if(lines.length===maxLines) break;
+      } else {
+        cur = test;
+      }
+    }
+    if(lines.length<maxLines && cur.length>0) lines.push(cur);
+    if(lines.length===maxLines){
+      var last = lines[maxLines-1];
+      while(c.measureText(last+"…").width>maxWidth && last.length>0){ last = last.slice(0,-1); }
+      var consumed = lines.slice(0,maxLines-1).join("").length + last.length;
+      if(consumed < chars.length) last += "…";
+      lines[maxLines-1] = last;
+    }
+    return lines;
+  }
+
+  function truncateOneLine(c,text,maxWidth){
+    var t = text || "";
+    if(c.measureText(t).width <= maxWidth) return t;
+    var chars = Array.from(t);
+    while(chars.length>0 && c.measureText(chars.join("")+"…").width>maxWidth){ chars.pop(); }
+    return chars.join("")+"…";
+  }
+
+  // KV1 — KV상품 썸네일. Real spec (708x572 @PC): pad-left 40, description
+  // block sits 128px above the bottom, width 450; category 28B / title 48EB /
+  // body 20SB, all in ink #181A1B (no gradient, no overlay); CTA bar is a
+  // translucent white strip (rgba(255,255,255,.4)) 88px tall with centered 28B text.
+  function drawProduct(c,w,h,scale,s){
+    c.clearRect(0,0,w,h);
+    if(s.imageEl) coverImage(c,s.imageEl,w,h); else drawPlaceholderLight(c,w,h);
+
+    var pad = 40*scale;
+    var ctaH = 88*scale;
+    var descWidth = 450*scale;
+    var descBottom = h - 128*scale;
+    var catFont = 28*scale, titleFont = 48*scale, bodyFont = 20*scale;
+    var gap1 = 8*scale, gap2 = 8*scale;
+
+    c.font = "500 " + bodyFont + "px 'IBM Plex Sans KR', sans-serif";
+    var bodyLines = wrapLines(c, s.body, descWidth, 2);
+    var bodyLH = bodyFont*1.32;
+    var bodyBlockH = bodyLines.length*bodyLH;
+
+    var catLH = catFont*1.32, titleLH = titleFont*1.32;
+    var blockTop = descBottom - (catLH + gap1 + titleLH + gap2 + bodyBlockH);
+    var cursor = blockTop;
+
+    if(s.category){
+      c.font = "700 " + catFont + "px 'IBM Plex Sans KR', sans-serif";
+      c.fillStyle = "#181A1B";
+      c.fillText(s.category, pad, cursor + catFont*0.86);
+    }
+    cursor += catLH + gap1;
+
+    c.font = "800 " + titleFont + "px 'IBM Plex Sans KR', sans-serif";
+    c.fillStyle = "#181A1B";
+    var titleText = truncateOneLine(c, s.title, descWidth);
+    c.fillText(titleText, pad, cursor + titleFont*0.86);
+    cursor += titleLH + gap2;
+
+    c.font = "500 " + bodyFont + "px 'IBM Plex Sans KR', sans-serif";
+    c.fillStyle = "rgba(20,16,20,0.85)";
+    bodyLines.forEach(function(line,i){ c.fillText(line, pad, cursor + i*bodyLH + bodyFont*0.86); });
+
+    c.fillStyle = "rgba(255,255,255,0.4)";
+    c.fillRect(0,h-ctaH,w,ctaH);
+    c.fillStyle = "#1A1A1A";
+    c.font = "700 " + (28*scale) + "px 'IBM Plex Sans KR', sans-serif";
+    c.textAlign = "center"; c.textBaseline = "middle";
+    c.fillText(s.cta || "자세히 보기", w/2, h-ctaH/2);
+    c.textAlign = "left"; c.textBaseline = "alphabetic";
+  }
+
+  // KV2 / KV3 — KV고객사례 & KV인사이트 썸네일. Real spec (@PC height 274):
+  // full-bleed photo, subtle dark wash (~10%→20% black top→bottom), tag is
+  // plain bold white text (no chip) at (28,28), title bold white 28px bottom-left
+  // (2-line clamp), no rounded corners.
+  function drawCard(c,w,h,scale,s){
+    c.clearRect(0,0,w,h);
+    if(s.imageEl) coverImage(c,s.imageEl,w,h); else drawPlaceholderDark(c,w,h);
+
+    var grad = c.createLinearGradient(0,0,0,h);
+    grad.addColorStop(0,"rgba(6,6,6,0.10)");
+    grad.addColorStop(1,"rgba(6,6,6,0.32)");
+    c.fillStyle = grad;
+    c.fillRect(0,0,w,h);
+
+    var padL = 28*scale, padR = 32*scale, padTop = 28*scale, padBottom = 32*scale;
+    var tagFont = 20*scale, titleFont = 28*scale;
+    var titleLH = titleFont*1.32;
+
+    c.shadowColor = "rgba(0,0,0,0.35)";
+    c.shadowBlur = 6*scale;
+
+    if(s.category){
+      c.font = "700 " + tagFont + "px 'IBM Plex Sans KR', sans-serif";
+      c.fillStyle = "#FFFFFF";
+      c.fillText(s.category, padL, padTop + tagFont*0.86);
+    }
+
+    c.font = "700 " + titleFont + "px 'IBM Plex Sans KR', sans-serif";
+    c.fillStyle = "#FFFFFF";
+    var maxWidth = w - padL - padR;
+    var lines = wrapLines(c, s.title, maxWidth, 2);
+    var startY = h - padBottom - (lines.length-1)*titleLH - (titleLH - titleFont*0.86 - (titleLH-titleFont)/2);
+    lines.forEach(function(line,i){ c.fillText(line, padL, h - padBottom - (lines.length-1-i)*titleLH); });
+
+    c.shadowColor = "transparent";
+    c.shadowBlur = 0;
+  }
+
+  function redrawCanvas(){
+    var t = getType(currentTypeId);
+    var size = currentDevice==="pc" ? t.sizePC : t.sizeMW;
+    canvas.width = size.w; canvas.height = size.h;
+    canvas.style.width = Math.min(size.w, 620) + "px";
+
+    var baseH = t.variant==="product" ? 572 : 274;
+    var scale = size.h / baseH;
+    var s = state[t.id];
+
+    if(t.variant==="product") drawProduct(ctx,size.w,size.h,scale,s);
+    else drawCard(ctx,size.w,size.h,scale,s);
+  }
+
+  // ---------- request text ----------
+  function buildRequestText(){
+    var t = getType(currentTypeId);
+    var s = state[t.id];
+    var lines = [];
+    lines.push("[메인 Key Visual 기획서]");
+    lines.push("KV 종류: " + t.label + " (" + t.sub + ")");
+    lines.push("작성일: " + isoDate);
+    lines.push("Figma 프레임명(제안): " + t.frameName);
+    lines.push("");
+    lines.push("▶ 문구");
+    t.fields.forEach(function(f){
+      var v = s[f.key] || "";
+      lines.push("- " + f.label + ": " + v + " (" + v.length + "/" + f.max + "자)");
+    });
+    lines.push("");
+    lines.push("▶ 사이즈");
+    lines.push("PC: " + t.sizePC.w + " x " + t.sizePC.h + "px");
+    lines.push("Mobile(MW): " + t.sizeMW.w + " x " + t.sizeMW.h + "px");
+    lines.push("");
+    lines.push("▶ 참고 Figma");
+    lines.push("- 구성 설명: " + GUIDE.overview);
+    lines.push("- " + t.guideLabel + ": " + t.guideUrl);
+    lines.push("- 문구 적용 대상(콘텐츠 기획안_2026): " + GUIDE.target);
+    return lines.join("\n");
+  }
+  function updateRequestText(){
+    document.getElementById("requestText").value = buildRequestText();
+  }
+
+  // ---------- copy ----------
+  document.getElementById("copyBtn").addEventListener("click", function(){
+    var text = buildRequestText();
+    function done(){ toast("요청 내용이 복사되었습니다."); }
+    function fail(){
+      try{
+        var ta = document.getElementById("requestText");
+        ta.select();
+        document.execCommand("copy");
+        done();
+      }catch(e){ toast("복사에 실패했어요. 아래 텍스트 영역에서 직접 복사해 주세요."); }
+    }
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(done).catch(fail);
+    } else { fail(); }
+  });
+
+  // ---------- download ----------
+  function slug(str){ return str.replace(/[\\/:*?"<>|]/g,""); }
+
+  async function saveDevicePNG(device){
+    var t = getType(currentTypeId);
+    var size = device==="pc" ? t.sizePC : t.sizeMW;
+    // Mobile PNGs are exported at 2x so they hold up on retina/고밀도 화면 —
+    // same layout, just rendered at double the pixel density.
+    var mult = device==="mw" ? 2 : 1;
+    var off = document.createElement("canvas");
+    off.width = size.w*mult; off.height = size.h*mult;
+    var octx = off.getContext("2d");
+    var baseH = t.variant==="product" ? 572 : 274;
+    var scale = (size.h*mult) / baseH;
+    if(t.variant==="product") drawProduct(octx,size.w*mult,size.h*mult,scale,state[t.id]);
+    else drawCard(octx,size.w*mult,size.h*mult,scale,state[t.id]);
+
+    var filename = slug(t.frameName) + "_" + (device==="pc"?"PC":"MW@2x") + "_" + yymmdd + ".png";
+
+    if(typeof window.claude === "undefined" || !window.claude.use){
+      toast("이 화면에서는 파일 저장을 사용할 수 없어요.");
+      return;
+    }
+    var downloads;
+    try{ downloads = await window.claude.use("downloads"); }catch(e){ downloads = null; }
+    if(!downloads){ toast("이 화면에서는 파일 저장 기능을 사용할 수 없어요."); return; }
+
+    off.toBlob(async function(blob){
+      if(!blob){ toast("이미지 생성에 실패했어요."); return; }
+      try{
+        var res = await downloads.save({filename: filename, data: blob});
+        toast(res.status === "saved" ? "PNG가 저장되었습니다." : "PNG가 전달되었습니다.");
+      }catch(err){
+        var code = err && err.code;
+        if(code === "declined") toast("저장이 취소되었습니다.");
+        else if(code === "rate_limited") toast("잠시 후 다시 시도해 주세요.");
+        else toast("PNG 저장에 실패했어요 (" + (code||"unknown") + ").");
+      }
+    }, "image/png");
+  }
+
+  document.getElementById("downloadPC").addEventListener("click", function(){ saveDevicePNG("pc"); });
+  document.getElementById("downloadMW").addEventListener("click", function(){ saveDevicePNG("mw"); });
+
+  // ---------- render all ----------
+  function renderAll(){
+    renderTabs();
+    renderForm();
+    renderRefs();
+    renderDeviceToggle();
+    renderUploadRow();
+    redrawCanvas();
+    updateRequestText();
+  }
+
+  renderAll();
+})();
+</script>
+
+</body></html>
