@@ -70,7 +70,8 @@ button { font-family: var(--font-text); }
   height: 56px;
 }
 
-.brand { display: flex; align-items: center; gap: 12px; }
+.brand { display: flex; align-items: center; gap: 12px; cursor: pointer; }
+.brand:hover .brand-text h1 { color: var(--primary-on-dark); }
 .brand-mark {
   font-size: 18px;
   color: var(--primary-on-dark);
@@ -136,6 +137,32 @@ button { font-family: var(--font-text); }
 }
 .month-tab.add { color: var(--primary); margin-left: 4px; }
 .month-tab:active { transform: scale(0.95); }
+
+.month-tab-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+}
+.month-tab-del {
+  border: none;
+  background: transparent;
+  color: var(--ink-muted-48);
+  font-size: 10px;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--r-pill);
+  cursor: pointer;
+  margin-left: -4px;
+}
+.month-tab-del:hover { background: rgba(181, 72, 45, 0.12); color: #b5482d; }
+
+.month-tabs-spacer { flex: 1; }
+
+.assignee-settings-btn {
+  color: var(--primary);
+  font-weight: 600;
+  white-space: nowrap;
+}
 
 /* ---------- Toolbar ---------- */
 
@@ -420,6 +447,12 @@ tbody input:focus, tbody select:focus, tbody textarea:focus {
   padding: 28px;
   width: 320px;
 }
+.modal-box-wide { width: 560px; }
+.modal-desc {
+  margin: -8px 0 16px;
+  font-size: 12.5px;
+  color: var(--ink-muted-48);
+}
 .modal-box h2 {
   margin: 0 0 16px;
   font-family: var(--font-display);
@@ -449,6 +482,102 @@ tbody input:focus, tbody select:focus, tbody textarea:focus {
   justify-content: flex-end;
   gap: 8px;
   margin-top: 20px;
+}
+
+/* ---------- Assignee settings (담당자 설정) ---------- */
+
+.assignee-form {
+  display: flex;
+  gap: 16px;
+}
+.assignee-col {
+  flex: 1;
+  min-width: 0;
+}
+.assignee-col h4 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.assignee-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.assignee-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.assignee-row input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-sm);
+  padding: 6px 8px;
+  font-size: 12.5px;
+}
+.assignee-row input:focus { outline: none; border-color: var(--primary-focus); }
+.assignee-del {
+  flex: none;
+  border: none;
+  background: var(--surface-chip);
+  color: var(--ink);
+  width: 22px;
+  height: 22px;
+  border-radius: var(--r-pill);
+  font-size: 10px;
+  cursor: pointer;
+}
+.assignee-del:hover { background: rgba(181, 72, 45, 0.15); color: #b5482d; }
+.btn-sm { padding: 6px 12px; font-size: 12px; width: 100%; }
+
+/* ---------- Weekly report (주간보고 작성하기) ---------- */
+
+.weekly-report-trigger {
+  display: flex;
+  justify-content: center;
+  margin: 24px 0 8px;
+}
+
+.weekly-report-box {
+  margin-top: 16px;
+  background: var(--canvas);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  padding: 20px 24px;
+}
+.weekly-report-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.weekly-report-header h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.weekly-report-actions { display: flex; gap: 8px; }
+.weekly-report-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--ink);
+  background: var(--canvas-parchment);
+  border-radius: var(--r-sm);
+  padding: 16px;
+  max-height: 60vh;
+  overflow-y: auto;
+  margin: 0;
 }
 
 /* ---------- Dashboard ---------- */
@@ -602,4 +731,6 @@ tbody input:focus, tbody select:focus, tbody textarea:focus {
   .app-header { padding: 0 16px; }
   .toolbar, main { padding-left: 16px; padding-right: 16px; }
   .dash-kpis { grid-template-columns: 1fr; }
+  .modal-box-wide { width: 92vw; }
+  .assignee-form { flex-direction: column; }
 }

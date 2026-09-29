@@ -10,7 +10,7 @@
 <body>
 
 <header class="app-header">
-  <div class="brand">
+  <div class="brand" id="brandHome" title="첫 화면(대시보드)으로 이동">
     <span class="brand-mark">▤</span>
     <div class="brand-text">
       <h1>2026 업무관리</h1>
@@ -56,6 +56,21 @@
       <div id="dashDueCard" class="summary-card"></div>
       <div id="dashNextWeekCard" class="summary-card"></div>
     </div>
+
+    <div class="weekly-report-trigger">
+      <button id="btnWeeklyReport" class="btn btn-primary">주간보고 작성하기</button>
+    </div>
+
+    <div id="weeklyReportBox" class="weekly-report-box" style="display:none">
+      <div class="weekly-report-header">
+        <h3>주간보고 초안</h3>
+        <div class="weekly-report-actions">
+          <button id="btnWeeklyReportCopy" class="btn btn-ghost">복사</button>
+          <button id="btnWeeklyReportDelete" class="btn btn-ghost">삭제</button>
+        </div>
+      </div>
+      <pre id="weeklyReportText" class="weekly-report-text"></pre>
+    </div>
   </section>
 
   <section id="sheetPanel" class="panel" style="display:none">
@@ -86,6 +101,18 @@
     <div class="modal-actions">
       <button id="btnSettingsClose" class="btn btn-ghost">닫기</button>
       <button id="btnSettingsSave" class="btn btn-primary">저장</button>
+    </div>
+  </div>
+</div>
+
+<div id="assigneeModal" class="modal">
+  <div class="modal-box modal-box-wide">
+    <h2>담당자 설정</h2>
+    <p class="modal-desc">기획 / 디자인 / 퍼블 담당자 코드를 추가·삭제·이름변경할 수 있습니다. 저장을 눌러야 반영됩니다.</p>
+    <div id="assigneeForm" class="assignee-form"></div>
+    <div class="modal-actions">
+      <button id="btnAssigneeClose" class="btn btn-ghost">닫기</button>
+      <button id="btnAssigneeSave" class="btn btn-primary">저장</button>
     </div>
   </div>
 </div>

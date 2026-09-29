@@ -14,6 +14,7 @@ const state = {
 // ---------------- Storage layer (Vercel API 또는 localStorage) ----------------
 
 const LOCAL_MONTHS_KEY = "wm_months_v1";
+const LOCAL_ASSIGNEES_KEY = "wm_assignees_v1";
 function localMonthsKey() { return LOCAL_MONTHS_KEY; }
 function localTasksKey(month) { return `wm_tasks_v1_${month}`; }
 function localSettingsKey(month) { return `wm_settings_v1_${month}`; }
@@ -50,6 +51,31 @@ async function saveMonths(months) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ months })
+  });
+}
+
+async function loadAssignees() {
+  if (!API_BASE) {
+    const raw = localStorage.getItem(LOCAL_ASSIGNEES_KEY);
+    return raw ? JSON.parse(raw) : null;
+  }
+  try {
+    const data = await apiFetchJson("/api/assignees");
+    return data.assignees || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function saveAssignees(assignees) {
+  if (!API_BASE) {
+    localStorage.setItem(LOCAL_ASSIGNEES_KEY, JSON.stringify(assignees));
+    return;
+  }
+  await apiFetchJson("/api/assignees", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ assignees })
   });
 }
 
@@ -135,6 +161,14 @@ async function init() {
     state.months = [`${now.getMonth() + 1}월`];
     await saveMonths(state.months);
   }
+  const savedAssignees = await loadAssignees();
+  if (savedAssignees) {
+    Object.keys(ASSIGNEE_OPTIONS).forEach(role => {
+      if (Array.isArray(savedAssignees[role])) {
+        ASSIGNEE_OPTIONS[role].splice(0, ASSIGNEE_OPTIONS[role].length, ...savedAssignees[role]);
+      }
+    });
+  }
   state.currentMonth = state.months[state.months.length - 1];
   await switchMonth(state.currentMonth);
   renderMonthTabs();
@@ -160,17 +194,40 @@ function renderMonthTabs() {
   const wrap = document.getElementById("monthTabs");
   wrap.innerHTML = "";
   state.months.forEach(m => {
+    const tabWrap = document.createElement("span");
+    tabWrap.className = "month-tab-wrap";
+
     const btn = document.createElement("button");
     btn.className = "month-tab" + (m === state.currentMonth ? " active" : "");
     btn.textContent = `업무현황_${m}`;
     btn.onclick = () => switchMonth(m);
-    wrap.appendChild(btn);
+    tabWrap.appendChild(btn);
+
+    const delBtn = document.createElement("button");
+    delBtn.className = "month-tab-del";
+    delBtn.textContent = "✕";
+    delBtn.title = "이 월 시트 삭제";
+    delBtn.onclick = (e) => { e.stopPropagation(); deleteMonth(m); };
+    tabWrap.appendChild(delBtn);
+
+    wrap.appendChild(tabWrap);
   });
+
   const addBtn = document.createElement("button");
   addBtn.className = "month-tab add";
   addBtn.textContent = "+ 새 월 시트";
   addBtn.onclick = addMonth;
   wrap.appendChild(addBtn);
+
+  const spacer = document.createElement("span");
+  spacer.className = "month-tabs-spacer";
+  wrap.appendChild(spacer);
+
+  const assigneeBtn = document.createElement("button");
+  assigneeBtn.className = "month-tab assignee-settings-btn";
+  assigneeBtn.textContent = "담당자 설정";
+  assigneeBtn.onclick = openAssigneeSettings;
+  wrap.appendChild(assigneeBtn);
 }
 
 async function addMonth() {
@@ -184,6 +241,33 @@ async function addMonth() {
   await switchMonth(clean);
 }
 
+async function deleteMonth(month) {
+  const ok = confirm("입력된 정보가 모두 삭제됩니다. 삭제하시겠습니까?");
+  if (!ok) return; // N: 삭제하지 않고 닫기
+
+  state.months = state.months.filter(m => m !== month);
+  await saveMonths(state.months);
+
+  // 로컬 데모 모드일 때는 저장된 업무/설정 데이터도 함께 정리합니다.
+  if (!API_BASE) {
+    localStorage.removeItem(localTasksKey(month));
+    localStorage.removeItem(localSettingsKey(month));
+  }
+
+  if (state.months.length === 0) {
+    const now = new Date();
+    const fallback = `${now.getMonth() + 1}월`;
+    state.months = [fallback];
+    await saveMonths(state.months);
+  }
+
+  if (state.currentMonth === month) {
+    await switchMonth(state.months[state.months.length - 1]);
+  } else {
+    renderMonthTabs();
+  }
+}
+
 function bindGlobalControls() {
   document.getElementById("btnAddRow").onclick = addRow;
   document.getElementById("btnDashboardView").onclick = () => setView("dashboard");
@@ -193,6 +277,10 @@ function bindGlobalControls() {
   document.getElementById("searchInput").oninput = (e) => { state.searchText = e.target.value; renderSheet(); };
   document.getElementById("btnExport").onclick = exportCsv;
   document.getElementById("btnDashRefresh").onclick = renderDashboard;
+  document.getElementById("brandHome").onclick = () => setView("dashboard");
+  document.getElementById("btnWeeklyReport").onclick = generateWeeklyReport;
+  document.getElementById("btnWeeklyReportCopy").onclick = copyWeeklyReport;
+  document.getElementById("btnWeeklyReportDelete").onclick = deleteWeeklyReport;
 }
 
 function setView(view) {
@@ -718,6 +806,70 @@ function openSettings() {
   };
 }
 
+// ---------------- Assignee settings modal (담당자 설정) ----------------
+
+let assigneeDraft = null;
+
+function openAssigneeSettings() {
+  assigneeDraft = {
+    기획: [...ASSIGNEE_OPTIONS.기획],
+    디자인: [...ASSIGNEE_OPTIONS.디자인],
+    퍼블: [...ASSIGNEE_OPTIONS.퍼블]
+  };
+  const modal = document.getElementById("assigneeModal");
+  modal.style.display = "flex";
+  renderAssigneeForm();
+
+  document.getElementById("btnAssigneeClose").onclick = () => {
+    modal.style.display = "none";
+    assigneeDraft = null;
+  };
+  document.getElementById("btnAssigneeSave").onclick = async () => {
+    Object.keys(ASSIGNEE_OPTIONS).forEach(role => {
+      const cleaned = assigneeDraft[role].map(v => v.trim()).filter(Boolean);
+      ASSIGNEE_OPTIONS[role].splice(0, ASSIGNEE_OPTIONS[role].length, ...cleaned);
+    });
+    await saveAssignees(ASSIGNEE_OPTIONS);
+    modal.style.display = "none";
+    assigneeDraft = null;
+    renderSheet(); // 담당자 드롭다운 옵션 갱신
+  };
+}
+
+function renderAssigneeForm() {
+  const container = document.getElementById("assigneeForm");
+  const roles = Object.keys(assigneeDraft);
+  container.innerHTML = roles.map(role => `
+    <div class="assignee-col">
+      <h4>${role}</h4>
+      <div class="assignee-list" data-role="${role}">
+        ${assigneeDraft[role].map((name, i) => `
+          <div class="assignee-row">
+            <input type="text" value="${escapeHtml(name)}" data-role="${role}" data-idx="${i}" />
+            <button type="button" class="assignee-del" data-role="${role}" data-idx="${i}">✕</button>
+          </div>`).join("")}
+      </div>
+      <button type="button" class="btn btn-ghost btn-sm assignee-add" data-role="${role}">+ 추가</button>
+    </div>`).join("");
+
+  container.querySelectorAll(".assignee-row input").forEach(inp => {
+    inp.oninput = () => { assigneeDraft[inp.dataset.role][+inp.dataset.idx] = inp.value; };
+  });
+  container.querySelectorAll(".assignee-del").forEach(btn => {
+    btn.onclick = () => {
+      assigneeDraft[btn.dataset.role].splice(+btn.dataset.idx, 1);
+      renderAssigneeForm();
+    };
+  });
+  container.querySelectorAll(".assignee-add").forEach(btn => {
+    btn.onclick = () => {
+      const role = btn.dataset.role;
+      assigneeDraft[role].push(`${role}${assigneeDraft[role].length + 1}`);
+      renderAssigneeForm();
+    };
+  });
+}
+
 // ---------------- CSV export ----------------
 
 function exportCsv() {
@@ -733,6 +885,143 @@ function exportCsv() {
   a.href = url; a.download = `업무현황_${state.currentMonth}.csv`;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+// ---------------- 주간보고 작성 (주간보고_자동화_정책 기준) ----------------
+
+function toDateStr(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function reportDateRange() {
+  const end = new Date(); end.setHours(0, 0, 0, 0);
+  const start = new Date(end);
+  while (start.getDay() !== 4) start.setDate(start.getDate() - 1); // 4 = 목요일, 작성일 직전(당일 포함) 목요일까지 거슬러 올라감
+  return { start, end };
+}
+
+function mdShort(dateStr) {
+  return dateStr ? dateStr.slice(5).replace("-", "/") : "";
+}
+
+function majorBracket(t) {
+  return t.major ? `[${t.major}]` : "";
+}
+
+async function generateWeeklyReport() {
+  const btn = document.getElementById("btnWeeklyReport");
+  btn.disabled = true;
+  const originalLabel = btn.textContent;
+  btn.textContent = "작성 중...";
+  try {
+    const { start, end } = reportDateRange();
+    const startStr = toDateStr(start), endStr = toDateStr(end);
+
+    // 정책: 작성일이 속한 월의 "업무현황_N월" 시트를 참고
+    const targetMonth = `${end.getMonth() + 1}월`;
+    const monthExists = state.months.includes(targetMonth);
+    const refMonth = monthExists ? targetMonth : state.currentMonth;
+    const tasks = (refMonth === state.currentMonth) ? state.tasks : await loadTasks(refMonth);
+
+    // 공통 규칙: 취소 제외, 업무명 공란 제외
+    const valid = tasks.filter(t => t.status !== "취소" && (t.title || "").trim());
+
+    // 5.1 건수 집계
+    const inProgressCount = valid.filter(t => t.status === "진행").length;
+    const doneInRange = valid.filter(t => t.status === "완료" && t.doneDate && t.doneDate >= startStr && t.doneDate <= endStr);
+    const receivedCount = valid.filter(t => t.receivedDate && t.receivedDate >= startStr && t.receivedDate <= endStr).length;
+
+    // 완료일 특정 불가(확인 필요)
+    const needCheck = valid.filter(t => t.status === "완료" && !t.doneDate);
+
+    // 5.2 진행중 업무 목록: 진행/대기/공란(접수일 있음)
+    const progressList = valid
+      .filter(t => t.status === "진행" || t.status === "대기" || (!t.status && t.receivedDate))
+      .map((t, idx) => ({ t, idx }))
+      .sort((a, b) => {
+        const ad = a.t.dueDate, bd = b.t.dueDate;
+        if (ad && bd) return ad.localeCompare(bd);
+        if (ad && !bd) return -1;
+        if (!ad && bd) return 1;
+        return a.idx - b.idx;
+      })
+      .map(x => x.t);
+
+    // 5.3 완료 업무 목록
+    const doneList = [...doneInRange].sort((a, b) => a.doneDate.localeCompare(b.doneDate));
+
+    const weekdayFull = WEEKDAY_KOR[end.getDay()] + "요일";
+    const lines = [];
+    lines.push(`# 주간보고 (${endStr} ${weekdayFull} 작성)`);
+    lines.push("");
+    lines.push(`- 참고 시트: 업무현황_${refMonth}${monthExists ? "" : " (해당 월 시트가 없어 현재 열려있는 탭 기준으로 작성)"}`);
+    lines.push(`- 대상 기간: ${startStr}(목) ~ ${endStr}(${WEEKDAY_KOR[end.getDay()]})`);
+    lines.push("");
+    lines.push("## 건수 집계");
+    lines.push("");
+    lines.push(`- 진행 : ${inProgressCount}건`);
+    lines.push(`- 완료 : ${doneInRange.length}건`);
+    lines.push(`- 접수 : ${receivedCount}건`);
+    lines.push("");
+    lines.push("## 진행중 업무 목록");
+    lines.push("");
+    if (progressList.length) {
+      progressList.forEach(t => {
+        const due = t.dueDate ? `(${mdShort(t.dueDate)})` : "(일정 협의 중)";
+        lines.push(`- ${majorBracket(t)}${t.title}${due}`);
+      });
+    } else {
+      lines.push("- (해당 없음)");
+    }
+    lines.push("");
+    lines.push("## 완료 업무 목록");
+    lines.push("");
+    if (doneList.length) {
+      doneList.forEach(t => lines.push(`- ${majorBracket(t)}${t.title}(${mdShort(t.doneDate)})`));
+    } else {
+      lines.push("- (해당 없음)");
+    }
+    if (needCheck.length) {
+      lines.push("");
+      lines.push("## 확인 필요");
+      lines.push("");
+      lines.push("> 완료 상태이나 완료일을 특정할 수 없어 집계에서 제외된 항목입니다.");
+      lines.push("");
+      needCheck.forEach(t => {
+        const recv = t.receivedDate ? `(접수일 ${mdShort(t.receivedDate)})` : "(접수일 미상)";
+        lines.push(`- ${majorBracket(t)} ${t.title} ${recv}`);
+      });
+    }
+
+    showWeeklyReport(lines.join("\n"));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalLabel;
+  }
+}
+
+function showWeeklyReport(text) {
+  document.getElementById("weeklyReportBox").style.display = "block";
+  document.getElementById("weeklyReportText").textContent = text;
+  document.getElementById("weeklyReportBox").scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+async function copyWeeklyReport() {
+  const text = document.getElementById("weeklyReportText").textContent;
+  try {
+    await navigator.clipboard.writeText(text);
+    const btn = document.getElementById("btnWeeklyReportCopy");
+    const original = btn.textContent;
+    btn.textContent = "복사됨!";
+    setTimeout(() => { btn.textContent = original; }, 1200);
+  } catch (e) {
+    alert("클립보드 복사에 실패했습니다. 직접 선택해 복사해주세요.");
+  }
+}
+
+function deleteWeeklyReport() {
+  document.getElementById("weeklyReportBox").style.display = "none";
+  document.getElementById("weeklyReportText").textContent = "";
 }
 
 window.addEventListener("DOMContentLoaded", init);
