@@ -1,9 +1,0 @@
-{
-  "name": "task-management-sheet-api",
-  "version": "1.0.0",
-  "private": true,
-  "description": "업무관리 시트 - Vercel 서버리스 API (데이터 저장용)",
-  "dependencies": {
-    "@vercel/kv": "^2.0.0"
-  }
-}
