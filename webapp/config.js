@@ -52,7 +52,7 @@ const DEFAULT_TARGET_MM = { 기획: 2, 디자인: 2, 퍼블: 3, GA: 1, PM: 1 };
 const MM_HOURS = 160;
 
 // 업무현황 시트 컬럼 정의 (표시 순서)
-// type: text | textarea | select | select-dependent | shortdate | number | readonly | ticket
+// type: text | textarea | select | select-dependent | datepick | number | readonly | ticket
 const COLUMNS = [
   { key: "no", label: "NO", type: "readonly", width: 36, group: "meta" },
   { key: "ticket", label: "티켓번호", type: "ticket", width: 64, group: "meta" },
@@ -64,17 +64,17 @@ const COLUMNS = [
   { key: "title", label: "업무명", type: "text", width: 300, group: "content" },
   { key: "detail", label: "업무상세", type: "textarea", width: 200, group: "content" },
   { key: "reqTeam", label: "요청팀(U+)", type: "text", width: 62, maxLength: 4, group: "requester" },
-  { key: "reqPerson", label: "요청자(U+)", type: "text", width: 62, maxLength: 4, group: "requester" },
-  { key: "pm", label: "접수자(ML)", type: "text", width: 62, maxLength: 4, group: "requester" },
+  { key: "reqPerson", label: "요청자", type: "text", width: 44, maxLength: 4, group: "requester" },
+  { key: "pm", label: "접수자", type: "text", width: 44, maxLength: 4, group: "requester" },
   { key: "planner", label: "기획", type: "select", options: ASSIGNEE_OPTIONS.기획, width: 76, group: "assignee" },
   { key: "designer", label: "디자인", type: "select", options: ASSIGNEE_OPTIONS.디자인, width: 76, group: "assignee" },
   { key: "publisher", label: "퍼블", type: "select", options: ASSIGNEE_OPTIONS.퍼블, width: 76, group: "assignee" },
-  { key: "developer", label: "개발", type: "text", width: 62, maxLength: 4, group: "assignee" },
+  { key: "developer", label: "개발", type: "text", width: 44, maxLength: 4, group: "assignee" },
   { key: "ga", label: "GA", type: "select", options: GA_OPTIONS, width: 60, group: "assignee" },
-  { key: "receivedDate", label: "접수일", type: "shortdate", width: 54, group: "schedule" },
-  { key: "startDate", label: "시작일", type: "shortdate", width: 54, group: "schedule" },
-  { key: "dueDate", label: "완료예정", type: "shortdate", width: 54, group: "schedule" },
-  { key: "doneDate", label: "완료일", type: "shortdate", width: 54, group: "schedule" },
+  { key: "receivedDate", label: "접수일", type: "datepick", width: 70, group: "schedule" },
+  { key: "startDate", label: "시작일", type: "datepick", width: 70, group: "schedule" },
+  { key: "dueDate", label: "완료예정", type: "datepick", width: 70, group: "schedule" },
+  { key: "doneDate", label: "완료일", type: "datepick", width: 70, group: "schedule" },
   { key: "status", label: "진행현황", type: "select", options: OPTIONS.진행현황, width: 76, group: "schedule" },
   { key: "reviewed", label: "검수(U+)", type: "select", options: OPTIONS.검수여부, width: 66, group: "schedule" },
   { key: "hPlanner", label: "기획", type: "number", width: 34, group: "hours" },

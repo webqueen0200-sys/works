@@ -8,7 +8,9 @@ const state = {
   tasks: [],           // 현재 월의 업무 배열
   settings: { targetMM: { ...DEFAULT_TARGET_MM }, workDays: 20 },
   view: "dashboard",    // "dashboard" | "sheet" | "summary"
-  searchText: ""
+  searchText: "",
+  sortKey: null,        // 정렬 기준 컬럼 key (null이면 시트 등록 순서)
+  sortDir: null         // "asc" | "desc"
 };
 
 // ---------------- Storage layer (Vercel API 또는 localStorage) ----------------
@@ -395,6 +397,49 @@ function groupLabel(group) {
   })[group] || group;
 }
 
+// ---------------- 정렬 / 행 색상 ----------------
+
+// 진행현황에 따른 행 배경색 클래스
+function rowStatusClass(status) {
+  if (status === "진행") return "row-progress";
+  if (["완료", "보류", "취소"].includes(status)) return "row-closed";
+  return "";
+}
+
+// 헤더 클릭: 오름차순 → 내림차순 → 정렬 해제(원래 순서)
+function toggleSort(key) {
+  if (state.sortKey !== key) {
+    state.sortKey = key;
+    state.sortDir = "asc";
+  } else if (state.sortDir === "asc") {
+    state.sortDir = "desc";
+  } else {
+    state.sortKey = null;
+    state.sortDir = null;
+  }
+  renderSheet();
+}
+
+const NUMERIC_KEYS = ["no", "ticket", "hPlanner", "hDesigner", "hPublisher", "hGa", "hPm", "hTotal", "mm"];
+
+function applySort(rows) {
+  if (!state.sortKey) return rows;
+  const key = state.sortKey;
+  const dir = state.sortDir === "desc" ? -1 : 1;
+  const isNum = NUMERIC_KEYS.includes(key);
+
+  return [...rows].sort((a, b) => {
+    const av = a[key], bv = b[key];
+    const aEmpty = av === "" || av === null || av === undefined;
+    const bEmpty = bv === "" || bv === null || bv === undefined;
+    if (aEmpty && bEmpty) return 0;
+    if (aEmpty) return 1;   // 빈 값은 방향과 무관하게 항상 아래로
+    if (bEmpty) return -1;
+    if (isNum) return (num(av) - num(bv)) * dir;
+    return String(av).localeCompare(String(bv), "ko") * dir;
+  });
+}
+
 function renderSheet() {
   const theadGroup = document.getElementById("theadGroup");
   const theadCols = document.getElementById("theadCols");
@@ -418,11 +463,16 @@ function renderSheet() {
   actionsTh.textContent = "";
   theadGroup.appendChild(actionsTh);
 
-  // column header row
+  // column header row (클릭 시 정렬: 오름차순 → 내림차순 → 원래 순서)
   COLUMNS.forEach(col => {
     const th = document.createElement("th");
-    th.textContent = col.label;
+    th.className = "sortable";
     th.style.minWidth = col.width + "px";
+    const arrow = state.sortKey === col.key ? (state.sortDir === "asc" ? " ▲" : " ▼") : "";
+    th.textContent = col.label + arrow;
+    if (state.sortKey === col.key) th.classList.add("sorted");
+    th.title = "클릭하면 정렬됩니다";
+    th.onclick = () => toggleSort(col.key);
     theadCols.appendChild(th);
   });
   const th2 = document.createElement("th");
@@ -430,13 +480,15 @@ function renderSheet() {
   theadCols.appendChild(th2);
 
   const q = state.searchText.trim().toLowerCase();
-  const rows = state.tasks.filter(t => {
+  let rows = state.tasks.filter(t => {
     if (!q) return true;
     return (t.title || "").toLowerCase().includes(q) || (t.detail || "").toLowerCase().includes(q) || (t.ticket || "").toLowerCase().includes(q);
   });
+  rows = applySort(rows);
 
   rows.forEach(task => {
     const tr = document.createElement("tr");
+    tr.className = rowStatusClass(task.status);
     COLUMNS.forEach(col => {
       const td = document.createElement("td");
       td.appendChild(renderCell(task, col));
@@ -530,6 +582,53 @@ function renderCell(task, col) {
     inp.value = task[col.key] || "";
     inp.onchange = () => updateField(task.id, col.key, inp.value);
     return inp;
+  }
+  if (col.type === "datepick") {
+    // MM/DD 직접 입력 + 달력 아이콘 클릭 시 네이티브 캘린더로 선택
+    const wrap = document.createElement("div");
+    wrap.className = "date-cell";
+
+    const text = document.createElement("input");
+    text.type = "text";
+    text.className = "shortdate-input";
+    text.placeholder = "MM/DD";
+    text.maxLength = 5;
+    text.value = isoToMMDD(task[col.key]);
+    text.title = task[col.key] || "";
+
+    const picker = document.createElement("input");
+    picker.type = "date";
+    picker.className = "date-picker";
+    picker.value = task[col.key] || "";
+    picker.tabIndex = -1;
+
+    text.onchange = () => {
+      const iso = mmddToIso(text.value, sheetYear());
+      picker.value = iso;
+      updateField(task.id, col.key, iso);
+    };
+    picker.onchange = () => {
+      text.value = isoToMMDD(picker.value);
+      updateField(task.id, col.key, picker.value);
+    };
+
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "date-btn";
+    btn.textContent = "📅";
+    btn.title = "달력에서 선택";
+    btn.onclick = () => {
+      if (typeof picker.showPicker === "function") {
+        try { picker.showPicker(); return; } catch (e) { /* 미지원 시 아래로 */ }
+      }
+      picker.focus();
+      picker.click();
+    };
+
+    wrap.appendChild(text);
+    wrap.appendChild(picker);
+    wrap.appendChild(btn);
+    return wrap;
   }
   if (col.type === "shortdate") {
     const inp = document.createElement("input");
