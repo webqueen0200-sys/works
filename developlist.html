@@ -209,10 +209,17 @@
   tbody .ed::placeholder { color: #c7c7cc; }
   tbody .ed:hover { border-color: var(--hairline); }
   tbody .ed:focus { border-color: var(--primary-focus); background: var(--canvas); outline: none; }
-  tbody select.ed { cursor: pointer; }
+  /* 드롭다운: 업무관리(webapp)와 동일하게 브라우저 기본 셀렉트 + 투명 테두리 */
+  tbody select.ed { line-height: normal; cursor: pointer; }
   tbody .ed.saving { border-color: rgba(0, 102, 204, 0.35); }
   tbody .ed.saved { border-color: rgba(36, 138, 61, 0.5); }
   tbody .ed.failed { border-color: var(--danger); }
+
+  /* 자동 번호 */
+  .auto-no {
+    display: block; min-width: 44px; padding: 6px 5px; text-align: center;
+    font-family: var(--font-mono); font-size: 13px; color: var(--ink-muted-48);
+  }
 
   /* 티켓번호 + 링크 (업무관리와 동일) */
   .ticket-cell { display: flex; align-items: center; gap: 2px; }
@@ -282,9 +289,6 @@
   </div>
 </main>
 
-<datalist id="dl-category"><option value="소상공인"><option value="기업"><option value="소호"></datalist>
-<datalist id="dl-worktype"><option value="배포"><option value="BO반영"><option value="수정"></datalist>
-<datalist id="dl-scope"><option value="퍼블만"><option value="개발포함"><option value="기획"></datalist>
 
 <script>
 (function () {
@@ -297,13 +301,13 @@
 
   /* 컬럼 정의 — 시트4 순서와 동일. rms_no 컬럼은 화면에서 "티켓번호"로 표시 */
   const COLUMNS = [
-    { key: "no",             label: "NO",           type: "text",     w: 52 },
+    { key: "no",             label: "NO",           type: "auto",     w: 44 },  // 자동 번호(입력 불가)
     { key: "deploy_date",    label: "배포일",        type: "date",     w: 128 },
     { key: "deploy_time",    label: "시간",          type: "time",     w: 100 },
-    { key: "deploy_type",    label: "배포유형",      type: "select",   w: 84, options: ["", "정기", "비정기", "긴급"] },
-    { key: "category",       label: "분류",          type: "text",     w: 88, list: "dl-category" },
-    { key: "work_type",      label: "구분",          type: "text",     w: 80, list: "dl-worktype" },
-    { key: "scope",          label: "작업범위",      type: "text",     w: 84, list: "dl-scope" },
+    { key: "deploy_type",    label: "배포유형",      type: "select",   w: 76, options: ["", "정기", "비정기"] },
+    { key: "category",       label: "분류",          type: "select",   w: 88, options: ["", "기업", "소상공인"] },
+    { key: "work_type",      label: "구분",          type: "select",   w: 80, options: ["", "배포", "BO반영", "배포/BO"] },
+    { key: "scope",          label: "작업범위",      type: "select",   w: 84, options: ["", "퍼블만", "개발포함", "기획", "기획퍼블", "개발"] },
     { key: "rms_no",         label: "티켓번호",      type: "ticket",   w: 90 },
     { key: "task_name",      label: "업무명",        type: "textarea", w: 300, placeholder: "업무명 입력" },
     { key: "file_list",      label: "파일목록",      type: "textarea", w: 240 },
@@ -448,7 +452,15 @@
   }
 
   /* ---------- 렌더 ---------- */
+  /* NO = 등록 순서 기준 자동 번호 (가장 먼저 등록한 행이 1, 최신 행이 가장 큰 번호).
+     검색·기간 필터와 관계없이 고정되고, 행을 삭제하면 다시 매겨집니다. */
+  function autoNo(id) {
+    const i = rows.findIndex((r) => r.id === id);
+    return i < 0 ? "" : rows.length - i;
+  }
+
   function editor(col, row) {
+    if (col.type === "auto") return `<span class="auto-no">${autoNo(row.id)}</span>`;
     const val = esc(toInputValue(col, row[col.key]));
     const common = `class="ed" data-key="${col.key}"`;
     const w = `style="width:${col.w}px"`;
@@ -463,9 +475,13 @@
       }
       case "textarea":
         return `<textarea ${common} ${w} rows="1" placeholder="${esc(col.placeholder || "")}">${val}</textarea>`;
-      case "select":
-        return `<select ${common} ${w}>${col.options.map((o) =>
-          `<option value="${esc(o)}"${o === (row[col.key] || "") ? " selected" : ""}>${o || "-"}</option>`).join("")}</select>`;
+      case "select": {
+        // 목록에 없는 기존 값(예: 예전에 직접 입력한 값)도 사라지지 않도록 옵션에 추가
+        const cur = row[col.key] || "";
+        const opts = cur && !col.options.includes(cur) ? [...col.options, cur] : col.options;
+        return `<select ${common} ${w}>${opts.map((o) =>
+          `<option value="${esc(o)}"${o === cur ? " selected" : ""}>${esc(o)}</option>`).join("")}</select>`;
+      }
       case "datetime":
         return `<input ${common} ${w} type="datetime-local" value="${val}" />`;
       case "date":
@@ -725,7 +741,7 @@
     const list = filtered();
     if (list.length === 0) { alert("내보낼 항목이 없습니다."); return; }
     const header = COLUMNS.map((c) => CSV_HEADERS[c.key] || c.label);
-    const lines = [header, ...list.map((r) => COLUMNS.map((c) => csvValue(c, r[c.key])))]
+    const lines = [header, ...list.map((r) => COLUMNS.map((c) => c.type === "auto" ? autoNo(r.id) : csvValue(c, r[c.key])))]
       .map((row) => row.map(csvCell).join(","));
     // BOM(\uFEFF)을 붙여야 엑셀에서 한글이 깨지지 않습니다
     const blob = new Blob(["\uFEFF" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
