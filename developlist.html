@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>배포 관리 시스템</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css" />
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  /* =========================================================
+     설정
+     ---------------------------------------------------------
+     정적 HTML은 Vercel 환경변수를 읽을 수 없어서 값을 여기에 직접 넣어야 합니다.
+     Vercel 프로젝트 > Settings > Environment Variables 또는
+     Supabase 대시보드 > Project Settings > API 에서 복사하세요.
+     (anon key는 브라우저 공개용 키라 HTML에 넣어도 되는 값입니다.)
+
+     값을 비워두면 "로컬 미리보기 모드"로 동작합니다(브라우저에만 임시 저장).
+     ========================================================= */
+  window.SUPABASE_CONFIG = {
+    url: "",      // 예: "https://abcdefgh.supabase.co"
+    anonKey: "",  // 예: "eyJhbGciOiJIUzI1NiIsInR5cCI6..."
+    table: "deployments",
+  };
+  // 티켓번호 클릭 시 이동할 Redmine 주소 (입력한 번호가 끝에 붙습니다)
+  window.TICKET_BASE_URL = "http://210.108.138.187/redmine/issues/";
+</script>
+<style>
+  /* 2026 업무관리(webapp) 스타일과 동일한 토큰 — DESIGN-apple.md 기준 */
+  :root {
+    --primary: #0066cc;
+    --primary-focus: #0071e3;
+    --primary-on-dark: #2997ff;
+    --ink: #1d1d1f;
+    --body-on-dark: #ffffff;
+    --body-muted: #cccccc;
+    --ink-muted-80: #333333;
+    --ink-muted-48: #7a7a7a;
+    --divider-soft: #f0f0f0;
+    --hairline: #e0e0e0;
+    --canvas: #ffffff;
+    --canvas-parchment: #f5f5f7;
+    --surface-pearl: #fafafc;
+    --surface-black: #000000;
+    --surface-chip: rgba(210, 210, 215, 0.64);
+    --on-primary: #ffffff;
+    --danger: #d70015;
+
+    --font-display: "Pretendard Variable", "SF Pro Display", system-ui, -apple-system, sans-serif;
+    --font-text: "Pretendard Variable", "SF Pro Text", system-ui, -apple-system, sans-serif;
+    --font-mono: "SF Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+    --r-xs: 5px;
+    --r-sm: 8px;
+    --r-md: 11px;
+    --r-lg: 18px;
+    --r-pill: 9999px;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    background: var(--canvas-parchment);
+    color: var(--ink);
+    font-family: var(--font-text);
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
+  }
+  button { font-family: inherit; }
+
+  /* ---------- 상단 헤더 (업무관리와 동일) ---------- */
+  .app-header {
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--surface-black); color: var(--body-on-dark);
+    padding: 0 24px; height: 56px; gap: 12px;
+  }
+  .brand { display: flex; align-items: center; gap: 12px; cursor: pointer; min-width: 0; }
+  .brand-mark { font-size: 18px; color: var(--primary-on-dark); }
+  .brand-text h1 {
+    margin: 0; font-family: var(--font-display);
+    font-size: 21px; font-weight: 600; letter-spacing: 0.231px; white-space: nowrap;
+  }
+  .brand:hover .brand-text h1 { color: var(--primary-on-dark); }
+  .api-status { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .api-mode {
+    font-family: var(--font-mono); font-size: 11px; color: var(--body-on-dark);
+    padding: 6px 14px; background: var(--surface-chip); border-radius: var(--r-pill);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 46vw;
+  }
+  .api-mode.local { background: rgba(255, 159, 10, 0.55); }
+  .api-mode.error { background: rgba(215, 0, 21, 0.7); }
+  .btn-health {
+    border: 1px solid #3b4a44; background: transparent; color: var(--body-muted);
+    padding: 6px 14px; border-radius: var(--r-pill); font-size: 11px; font-weight: 600;
+    cursor: pointer; white-space: nowrap; transition: transform .1s;
+  }
+  .btn-health:hover { border-color: var(--primary-on-dark); color: var(--primary-on-dark); }
+  .btn-health:active { transform: scale(0.95); }
+  .btn-health:disabled { opacity: .5; cursor: default; }
+
+  /* ---------- 툴바 ---------- */
+  .toolbar {
+    display: flex; align-items: center; justify-content: flex-end; gap: 12px;
+    padding: 16px 24px; background: var(--canvas); border-bottom: 1px solid var(--hairline); flex-wrap: wrap;
+  }
+  .toolbar-left { display: flex; gap: 6px; }
+  .toolbar-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .tab-btn {
+    border: none; background: transparent; padding: 9px 18px; border-radius: var(--r-pill);
+    font-size: 14px; font-weight: 400; letter-spacing: -0.224px; color: var(--ink-muted-80);
+    cursor: default;
+  }
+  .tab-btn.active { background: rgba(0, 102, 204, 0.1); color: var(--primary); font-weight: 600; }
+
+  #searchInput {
+    border: 1px solid rgba(0, 0, 0, 0.08); border-radius: var(--r-pill);
+    padding: 10px 18px; font-size: 14px; font-family: var(--font-text);
+    width: 260px; height: 40px; background: var(--canvas); color: var(--ink);
+  }
+  .date-range {
+    display: flex; align-items: center; gap: 6px; height: 40px; padding: 0 6px 0 14px;
+    border: 1px solid rgba(0, 0, 0, 0.08); border-radius: var(--r-pill); background: var(--canvas);
+  }
+  .date-range.active { border-color: var(--primary); background: rgba(0, 102, 204, 0.04); }
+  .date-range-label { font-size: 12px; font-weight: 600; color: var(--ink-muted-80); white-space: nowrap; }
+  .date-range input {
+    border: none; background: transparent; font-family: var(--font-text); font-size: 13px;
+    color: var(--ink); padding: 4px 2px; width: 124px; cursor: pointer;
+  }
+  .date-range input:focus { outline: none; color: var(--primary); }
+  .date-range .tilde { color: var(--ink-muted-48); }
+  .date-clear {
+    border: none; background: var(--surface-chip); color: var(--ink); font-size: 11px;
+    width: 22px; height: 22px; border-radius: var(--r-pill); cursor: pointer; line-height: 1; visibility: hidden;
+  }
+  .date-range.active .date-clear { visibility: visible; }
+  .date-clear:active { transform: scale(0.95); }
+  #searchInput::placeholder { color: var(--ink-muted-48); }
+  #searchInput:focus { outline: none; border-color: var(--primary-focus); }
+  .row-count, .save-status { font-family: var(--font-mono); font-size: 11px; color: var(--ink-muted-48); white-space: nowrap; }
+  .save-status.ok { color: #248a3d; }
+  .save-status.err { color: var(--danger); }
+
+  .btn {
+    border: 1px solid var(--primary); background: var(--canvas); color: var(--primary);
+    padding: 10px 20px; border-radius: var(--r-pill); font-size: 14px; font-weight: 400;
+    letter-spacing: -0.224px; cursor: pointer; transition: transform .1s, background .15s;
+    white-space: nowrap;
+  }
+  .btn:active:not(:disabled) { transform: scale(0.95); }
+  .btn:focus-visible { outline: 2px solid var(--primary-focus); outline-offset: 2px; }
+  .btn-primary { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
+  .btn-primary:hover { background: var(--primary-focus); border-color: var(--primary-focus); }
+  .btn-primary:disabled { opacity: .5; cursor: default; }
+  .btn-ghost { border-color: var(--hairline); color: var(--ink-muted-80); }
+  .btn-ghost:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); }
+  .btn-danger { border-color: var(--danger); color: var(--danger); }
+  .btn-danger:hover:not(:disabled) { background: rgba(215, 0, 21, 0.06); }
+  .btn:disabled { cursor: default; opacity: .45; }
+
+  /* ---------- 본문/테이블 ---------- */
+  main { padding: 20px 24px 48px; }
+  .notice {
+    margin: 0 0 12px; padding: 10px 14px; border-radius: var(--r-md);
+    background: var(--canvas); border: 1px solid var(--hairline);
+    font-size: 13px; color: var(--ink-muted-80);
+  }
+  .notice.error { border-color: rgba(215, 0, 21, 0.35); color: var(--danger); }
+  .notice[hidden] { display: none; }
+  .notice code { font-family: var(--font-mono); font-size: 12px; }
+
+  .table-scroll {
+    overflow: auto; border: 1px solid var(--hairline); border-radius: var(--r-lg);
+    background: var(--canvas); max-height: 74vh;
+  }
+  table { border-collapse: collapse; width: max-content; min-width: 100%; }
+  thead th {
+    position: sticky; top: 0; background: var(--canvas-parchment); color: var(--ink-muted-80);
+    font-size: 12px; font-weight: 600; letter-spacing: -0.224px; padding: 8px 10px;
+    border-bottom: 1px solid var(--hairline); border-right: 1px solid var(--divider-soft);
+    text-align: left; white-space: nowrap; z-index: 2;
+  }
+  #theadGroup th {
+    top: 0; height: 30px; background: #ececee; font-size: 11px; color: var(--ink-muted-48);
+    letter-spacing: 0.02em; z-index: 3;
+  }
+  #theadCols th { top: 30px; }
+  thead th.sticky-col { left: 0; z-index: 4; }
+  tbody td {
+    border-bottom: 1px solid var(--divider-soft); border-right: 1px solid var(--divider-soft);
+    padding: 2px 4px; vertical-align: top;
+  }
+  tbody tr { background: var(--canvas); }
+  tbody tr:hover { background: var(--surface-pearl); }
+  tbody tr.selected { background: rgba(0, 102, 204, 0.06); }
+  tbody tr.fresh { animation: fresh 1.6s ease; }
+  @keyframes fresh { from { background: rgba(0, 102, 204, 0.14); } }
+  td.sticky-col { position: sticky; left: 0; z-index: 1; background: inherit; text-align: center; padding-top: 8px; }
+  .empty { padding: 48px 12px; text-align: center; color: var(--ink-muted-48); font-size: 13px; border-right: none; }
+  input[type="checkbox"] { width: 15px; height: 15px; margin: 0; accent-color: var(--primary); cursor: pointer; }
+
+  /* 인라인 입력 */
+  tbody input.ed, tbody select.ed, tbody textarea.ed {
+    width: 100%; border: 1px solid transparent; background: transparent;
+    font-family: var(--font-text); font-size: 13px; letter-spacing: -0.224px; line-height: 1.4;
+    padding: 5px; border-radius: var(--r-xs); color: var(--ink);
+    transition: border-color .12s;
+  }
+  tbody textarea.ed { resize: vertical; min-height: 30px; overflow: hidden; display: block; }
+  tbody .ed::placeholder { color: #c7c7cc; }
+  tbody .ed:hover { border-color: var(--hairline); }
+  tbody .ed:focus { border-color: var(--primary-focus); background: var(--canvas); outline: none; }
+  tbody select.ed { cursor: pointer; }
+  tbody .ed.saving { border-color: rgba(0, 102, 204, 0.35); }
+  tbody .ed.saved { border-color: rgba(36, 138, 61, 0.5); }
+  tbody .ed.failed { border-color: var(--danger); }
+
+  /* 티켓번호 + 링크 (업무관리와 동일) */
+  .ticket-cell { display: flex; align-items: center; gap: 2px; }
+  .ticket-cell input.ed { width: 64px; flex: 0 0 auto; font-family: var(--font-mono); }
+  .ticket-link {
+    flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+    width: 20px; height: 20px; border-radius: var(--r-pill); color: var(--primary);
+    text-decoration: none; font-size: 12px;
+  }
+  .ticket-link:hover { background: rgba(0, 102, 204, 0.12); }
+  .ticket-link.disabled { color: var(--ink-muted-48); pointer-events: none; opacity: .5; }
+
+  @media (max-width: 640px) {
+    .app-header { padding: 0 16px; }
+    .brand-text h1 { font-size: 18px; }
+    .api-mode { display: none; }
+    .toolbar { padding: 12px 16px; }
+    #searchInput { width: 100%; }
+    .date-range { width: 100%; }
+    .date-range input { flex: 1; width: auto; }
+    main { padding: 16px 16px 40px; }
+  }
+</style>
+</head>
+<body>
+<header class="app-header">
+  <div class="brand" id="brandHome" title="맨 위로">
+    <span class="brand-mark">▤</span>
+    <div class="brand-text"><h1>배포 관리 시스템</h1></div>
+  </div>
+  <div class="api-status">
+    <div id="apiModeLabel" class="api-mode">연결 확인 중...</div>
+    <button id="btnHealth" class="btn-health">연결 확인</button>
+  </div>
+</header>
+
+<div class="toolbar">
+  <div class="toolbar-right">
+    <div class="date-range" id="dateRange">
+      <span class="date-range-label">배포일</span>
+      <input id="dateFrom" type="date" aria-label="배포일 시작" />
+      <span class="tilde">~</span>
+      <input id="dateTo" type="date" aria-label="배포일 끝" />
+      <button id="dateClear" class="date-clear" title="기간 초기화" aria-label="기간 초기화">✕</button>
+    </div>
+    <input id="searchInput" type="search" placeholder="업무명 · 요청자 · 티켓번호 검색" />
+    <span id="countLabel" class="row-count"></span>
+    <span id="saveStatus" class="save-status"></span>
+    <button id="addBtn" class="btn btn-primary">+ 행 추가</button>
+    <button id="deleteBtn" class="btn btn-ghost" disabled>선택 삭제</button>
+    <button id="csvBtn" class="btn btn-ghost" title="현재 목록(검색·기간 조건 적용)을 CSV로 저장">CSV 다운로드</button>
+  </div>
+</div>
+
+<main>
+  <p id="notice" class="notice" hidden></p>
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr id="theadGroup"></tr>
+        <tr id="theadCols"></tr>
+      </thead>
+      <tbody id="tbody">
+        <tr><td colspan="21" class="empty">불러오는 중...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</main>
+
+<datalist id="dl-category"><option value="소상공인"><option value="기업"><option value="소호"></datalist>
+<datalist id="dl-worktype"><option value="배포"><option value="BO반영"><option value="수정"></datalist>
+<datalist id="dl-scope"><option value="퍼블만"><option value="개발포함"><option value="기획"></datalist>
+
+<script>
+(function () {
+  const CFG = window.SUPABASE_CONFIG || {};
+  const TABLE = CFG.table || "deployments";
+  const TICKET_BASE = window.TICKET_BASE_URL || "";
+  const LOCAL_KEY = "deploy-list-preview";
+  const useSupabase = !!(CFG.url && CFG.anonKey && window.supabase);
+  const db = useSupabase ? window.supabase.createClient(CFG.url, CFG.anonKey) : null;
+
+  /* 컬럼 정의 — 시트4 순서와 동일. rms_no 컬럼은 화면에서 "티켓번호"로 표시 */
+  const COLUMNS = [
+    { key: "no",             label: "NO",           type: "text",     w: 52 },
+    { key: "deploy_date",    label: "배포일",        type: "date",     w: 128 },
+    { key: "deploy_time",    label: "시간",          type: "time",     w: 100 },
+    { key: "deploy_type",    label: "배포유형",      type: "select",   w: 84, options: ["", "정기", "비정기", "긴급"] },
+    { key: "category",       label: "분류",          type: "text",     w: 88, list: "dl-category" },
+    { key: "work_type",      label: "구분",          type: "text",     w: 80, list: "dl-worktype" },
+    { key: "scope",          label: "작업범위",      type: "text",     w: 84, list: "dl-scope" },
+    { key: "rms_no",         label: "티켓번호",      type: "ticket",   w: 90 },
+    { key: "task_name",      label: "업무명",        type: "textarea", w: 300, placeholder: "업무명 입력" },
+    { key: "file_list",      label: "파일목록",      type: "textarea", w: 240 },
+    { key: "requester",      label: "요청자",        type: "text",     w: 80 },
+    { key: "planner",        label: "기획",          type: "text",     w: 80 },
+    { key: "publisher",      label: "퍼블리싱",      type: "text",     w: 80 },
+    { key: "developer",      label: "개발담당자",    type: "text",     w: 84 },
+    { key: "impact",         label: "타서비스 영향도", type: "textarea", w: 240 },
+    { key: "stg_review_at",  label: "검수일시",      type: "datetime", w: 176 },
+    { key: "stg_reviewer",   label: "검수자",        type: "text",     w: 80 },
+    { key: "prod_review_at", label: "검수일시",      type: "datetime", w: 176 },
+    { key: "prod_reviewer",  label: "검수자",        type: "text",     w: 80 },
+    { key: "confirm_up",     label: "완료 확인(U+)", type: "text",     w: 96 },
+  ];
+  /* 그룹 헤더 (선택 칸 포함 개수) */
+  const GROUPS = [
+    { label: "관리", span: 2 },        // 선택, NO
+    { label: "배포 정보", span: 7 },   // 배포일 ~ 티켓번호
+    { label: "업무 내용", span: 2 },   // 업무명, 파일목록
+    { label: "담당자", span: 4 },      // 요청자 ~ 개발담당자
+    { label: "영향도", span: 1 },
+    { label: "STG", span: 2 },
+    { label: "운영", span: 2 },
+    { label: "완료", span: 1 },
+  ];
+  const SEARCH_KEYS = COLUMNS.filter((c) => ["text", "textarea", "select", "ticket"].includes(c.type)).map((c) => c.key);
+
+  let rows = [];
+  let selected = new Set();
+  let query = "";
+  let dateFrom = "";
+  let dateTo = "";
+  let freshId = null;
+
+  const $ = (id) => document.getElementById(id);
+  const tbody = $("tbody");
+
+  /* ---------- 헤더 ---------- */
+  $("theadGroup").innerHTML = GROUPS.map((g, i) =>
+    `<th colspan="${g.span}"${i === 0 ? ' class="sticky-col"' : ""}>${g.label}</th>`).join("");
+  $("theadCols").innerHTML =
+    `<th class="sticky-col" style="width:36px;text-align:center"><input type="checkbox" id="checkAll" aria-label="전체 선택" /></th>` +
+    COLUMNS.map((c) => `<th style="min-width:${c.w}px">${c.label}</th>`).join("");
+
+  /* ---------- 상태 표시 ---------- */
+  function setMode(text, kind) {
+    const el = $("apiModeLabel");
+    el.textContent = text;
+    el.className = "api-mode" + (kind ? " " + kind : "");
+  }
+  function showNotice(html, isError) {
+    const n = $("notice");
+    n.innerHTML = html;
+    n.className = "notice" + (isError ? " error" : "");
+    n.hidden = false;
+  }
+  let statusTimer;
+  function setSaveStatus(text, kind) {
+    const el = $("saveStatus");
+    el.textContent = text;
+    el.className = "save-status" + (kind ? " " + kind : "");
+    clearTimeout(statusTimer);
+    if (kind === "ok") statusTimer = setTimeout(() => { el.textContent = ""; }, 1800);
+  }
+
+  if (useSupabase) {
+    setMode(`Supabase 연동 (${CFG.url.replace(/^https?:\/\//, "")})`);
+  } else {
+    setMode("로컬 미리보기 모드", "local");
+    showNotice("로컬 미리보기 모드입니다. 입력한 데이터는 이 브라우저에만 임시 저장돼요. index.html 상단 <code>SUPABASE_CONFIG</code>에 url과 anonKey를 넣으면 Supabase에 저장됩니다.");
+  }
+
+  /* ---------- 데이터 계층 ---------- */
+  const local = {
+    read() { try { return JSON.parse(localStorage.getItem(LOCAL_KEY) || "[]"); } catch (e) { return []; } },
+    write(list) { try { localStorage.setItem(LOCAL_KEY, JSON.stringify(list)); } catch (e) {} },
+  };
+
+  async function fetchRows() {
+    if (!useSupabase) {
+      return local.read().sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
+    }
+    const { data, error } = await db.from(TABLE).select("*").order("created_at", { ascending: false });
+    if (error) throw error;
+    return data || [];
+  }
+  async function insertBlank() {
+    if (!useSupabase) {
+      const row = { id: crypto.randomUUID(), created_at: new Date().toISOString() };
+      COLUMNS.forEach((c) => (row[c.key] = null));
+      const list = local.read(); list.push(row); local.write(list);
+      return row;
+    }
+    const { data, error } = await db.from(TABLE).insert({}).select().single();
+    if (error) throw error;
+    return data;
+  }
+  async function updateField(id, key, value) {
+    if (!useSupabase) {
+      const list = local.read();
+      const r = list.find((x) => x.id === id);
+      if (r) { r[key] = value; local.write(list); }
+      return;
+    }
+    const { error } = await db.from(TABLE).update({ [key]: value }).eq("id", id);
+    if (error) throw error;
+  }
+  async function deleteRows(ids) {
+    if (!useSupabase) {
+      local.write(local.read().filter((r) => !ids.includes(r.id)));
+      return;
+    }
+    const { error } = await db.from(TABLE).delete().in("id", ids);
+    if (error) throw error;
+  }
+
+  /* ---------- 값 변환 ---------- */
+  const pad = (n) => String(n).padStart(2, "0");
+  function toInputValue(col, v) {
+    if (v === null || v === undefined) return "";
+    if (col.type === "time") return String(v).slice(0, 5);
+    if (col.type === "datetime") {
+      const d = new Date(v);
+      if (isNaN(d)) return "";
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+    return String(v);
+  }
+  function toDbValue(col, raw) {
+    let v = (raw || "").trim();
+    if (col.type === "ticket") v = v.replace(/^#/, "");
+    if (v === "") return null;
+    if (col.type === "datetime") return new Date(v).toISOString();
+    return v;
+  }
+  function esc(s) {
+    return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+  function ticketHref(v) {
+    const n = String(v || "").trim().replace(/^#/, "");
+    return /^\d+$/.test(n) ? TICKET_BASE + n : "";
+  }
+
+  /* ---------- 렌더 ---------- */
+  function editor(col, row) {
+    const val = esc(toInputValue(col, row[col.key]));
+    const common = `class="ed" data-key="${col.key}"`;
+    const w = `style="width:${col.w}px"`;
+    switch (col.type) {
+      case "ticket": {
+        const href = ticketHref(row[col.key]);
+        return `<div class="ticket-cell">
+          <input ${common} type="text" inputmode="numeric" placeholder="번호" value="${val}" />
+          <a class="ticket-link${href ? "" : " disabled"}" title="Redmine 이슈로 이동" target="_blank" rel="noopener noreferrer"
+             href="${href ? esc(href) : "javascript:void(0)"}">↗</a>
+        </div>`;
+      }
+      case "textarea":
+        return `<textarea ${common} ${w} rows="1" placeholder="${esc(col.placeholder || "")}">${val}</textarea>`;
+      case "select":
+        return `<select ${common} ${w}>${col.options.map((o) =>
+          `<option value="${esc(o)}"${o === (row[col.key] || "") ? " selected" : ""}>${o || "-"}</option>`).join("")}</select>`;
+      case "datetime":
+        return `<input ${common} ${w} type="datetime-local" value="${val}" />`;
+      case "date":
+      case "time":
+        return `<input ${common} ${w} type="${col.type}" value="${val}" />`;
+      default:
+        return `<input ${common} ${w} type="text" value="${val}"${col.list ? ` list="${col.list}"` : ""} />`;
+    }
+  }
+
+  function filtered() {
+    const q = query.trim().toLowerCase();
+    // from > to 로 입력한 경우 자동으로 순서를 바꿔서 적용
+    let from = dateFrom, to = dateTo;
+    if (from && to && from > to) [from, to] = [to, from];
+    return rows.filter((r) => {
+      if (from || to) {
+        const d = r.deploy_date ? String(r.deploy_date).slice(0, 10) : "";
+        if (!d) return false;
+        if (from && d < from) return false;
+        if (to && d > to) return false;
+      }
+      if (!q) return true;
+      return SEARCH_KEYS.some((k) => r[k] && String(r[k]).toLowerCase().includes(q));
+    });
+  }
+  function autosize(t) { t.style.height = "auto"; t.style.height = t.scrollHeight + 2 + "px"; }
+
+  function render() {
+    const list = filtered();
+    $("countLabel").textContent = `${list.length} / ${rows.length}건`;
+
+    if (list.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="${COLUMNS.length + 1}" class="empty">${
+        (query || dateFrom || dateTo) ? "조건에 맞는 항목이 없습니다." : "등록된 배포 항목이 없습니다. ‘+ 행 추가’를 눌러 시작하세요."}</td></tr>`;
+    } else {
+      tbody.innerHTML = list.map((r) => {
+        const cls = [selected.has(r.id) ? "selected" : "", r.id === freshId ? "fresh" : ""].join(" ").trim();
+        return `<tr data-id="${esc(r.id)}" class="${cls}">
+          <td class="sticky-col"><input type="checkbox" class="row-check" ${selected.has(r.id) ? "checked" : ""} aria-label="행 선택" /></td>
+          ${COLUMNS.map((c) => `<td>${editor(c, r)}</td>`).join("")}
+        </tr>`;
+      }).join("");
+      tbody.querySelectorAll("textarea.ed").forEach(autosize);
+    }
+    freshId = null;
+    syncSelectionUI();
+  }
+
+  function syncSelectionUI() {
+    const list = filtered();
+    const all = $("checkAll");
+    const allSel = list.length > 0 && list.every((r) => selected.has(r.id));
+    all.checked = allSel;
+    all.indeterminate = !allSel && list.some((r) => selected.has(r.id));
+    tbody.querySelectorAll("tr[data-id]").forEach((tr) => {
+      const on = selected.has(tr.dataset.id);
+      tr.classList.toggle("selected", on);
+      const cb = tr.querySelector(".row-check");
+      if (cb) cb.checked = on;
+    });
+    const del = $("deleteBtn");
+    del.disabled = selected.size === 0;
+    del.textContent = selected.size ? `선택 삭제 (${selected.size})` : "선택 삭제";
+    del.classList.toggle("btn-danger", selected.size > 0);
+    del.classList.toggle("btn-ghost", selected.size === 0);
+  }
+
+  async function reload() {
+    try {
+      rows = await fetchRows();
+      const ids = new Set(rows.map((r) => r.id));
+      selected = new Set([...selected].filter((id) => ids.has(id)));
+    } catch (e) {
+      console.error(e);
+      rows = [];
+      setMode("연결 오류", "error");
+      showNotice(`데이터를 불러오지 못했습니다. <code>SUPABASE_CONFIG</code> 값과 <code>${esc(TABLE)}</code> 테이블 생성 여부를 확인해주세요. (${esc(e.message || e)})`, true);
+    }
+    render();
+  }
+
+  /* ---------- 인라인 저장 ---------- */
+  async function saveCell(el) {
+    const tr = el.closest("tr");
+    if (!tr) return;
+    const id = tr.dataset.id;
+    const col = COLUMNS.find((c) => c.key === el.dataset.key);
+    const row = rows.find((r) => r.id === id);
+    if (!col || !row) return;
+
+    const next = toDbValue(col, el.value);
+    const prev = row[col.key] ?? null;
+    if (toInputValue(col, prev) === toInputValue(col, next)) return;
+
+    el.classList.remove("saved", "failed"); el.classList.add("saving");
+    setSaveStatus("저장 중...");
+    try {
+      await updateField(id, col.key, next);
+      row[col.key] = next;
+      if (col.type === "ticket") el.value = next || "";
+      el.classList.remove("saving"); el.classList.add("saved");
+      setTimeout(() => el.classList.remove("saved"), 1200);
+      setSaveStatus("저장됨 ✓", "ok");
+    } catch (e) {
+      console.error(e);
+      el.classList.remove("saving"); el.classList.add("failed");
+      setSaveStatus("저장 실패 — 다시 시도해주세요", "err");
+    }
+  }
+
+  // 텍스트 계열: 포커스가 빠질 때 저장 / 날짜·시간·선택: 바뀌는 즉시 저장
+  tbody.addEventListener("focusout", (e) => {
+    if (e.target.matches("input.ed[type=text], textarea.ed")) saveCell(e.target);
+  });
+  tbody.addEventListener("change", (e) => {
+    if (e.target.classList.contains("row-check")) {
+      const id = e.target.closest("tr").dataset.id;
+      e.target.checked ? selected.add(id) : selected.delete(id);
+      syncSelectionUI();
+      return;
+    }
+    if (e.target.matches("select.ed, input.ed[type=date], input.ed[type=time], input.ed[type=datetime-local]")) {
+      saveCell(e.target);
+    }
+  });
+  tbody.addEventListener("input", (e) => {
+    const el = e.target;
+    if (el.matches("textarea.ed")) autosize(el);
+    // 티켓번호 입력하는 동안 링크 실시간 갱신
+    if (el.dataset.key === "rms_no") {
+      const a = el.parentElement.querySelector(".ticket-link");
+      const href = ticketHref(el.value);
+      a.href = href || "javascript:void(0)";
+      a.classList.toggle("disabled", !href);
+    }
+  });
+  tbody.addEventListener("keydown", (e) => {
+    const el = e.target;
+    if (!el.classList.contains("ed")) return;
+    // Enter: 입력 확정 (업무명·파일목록·영향도는 Shift+Enter로 줄바꿈)
+    if (e.key === "Enter" && !e.isComposing && (el.tagName === "INPUT" || !e.shiftKey)) {
+      e.preventDefault();
+      el.blur();
+    }
+    // Esc: 수정 취소
+    if (e.key === "Escape") {
+      const row = rows.find((r) => r.id === el.closest("tr").dataset.id);
+      const col = COLUMNS.find((c) => c.key === el.dataset.key);
+      if (row && col) {
+        el.value = toInputValue(col, row[col.key]);
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+      el.blur();
+    }
+  });
+
+  /* ---------- 툴바 / 헤더 ---------- */
+  $("searchInput").addEventListener("input", (e) => { query = e.target.value; render(); });
+
+  function applyDateRange() {
+    dateFrom = $("dateFrom").value;
+    dateTo = $("dateTo").value;
+    $("dateRange").classList.toggle("active", !!(dateFrom || dateTo));
+    render();
+  }
+  function clearDateRange() {
+    $("dateFrom").value = ""; $("dateTo").value = "";
+    applyDateRange();
+  }
+  $("dateFrom").addEventListener("change", applyDateRange);
+  $("dateTo").addEventListener("change", applyDateRange);
+  $("dateClear").addEventListener("click", clearDateRange);
+
+  document.addEventListener("change", (e) => {
+    if (e.target.id !== "checkAll") return;
+    const list = filtered();
+    if (e.target.checked) list.forEach((r) => selected.add(r.id));
+    else list.forEach((r) => selected.delete(r.id));
+    syncSelectionUI();
+  });
+
+  $("deleteBtn").addEventListener("click", async () => {
+    if (selected.size === 0) return;
+    if (!window.confirm("삭제하시면 복구할 수 없습니다. 진행하시겠습니까?")) return;
+    try {
+      await deleteRows([...selected]);
+      selected.clear();
+      await reload();
+      setSaveStatus("삭제됨 ✓", "ok");
+    } catch (e) {
+      console.error(e);
+      alert("삭제 중 오류가 발생했습니다.");
+    }
+  });
+
+  $("addBtn").addEventListener("click", async () => {
+    const btn = $("addBtn");
+    btn.disabled = true;
+    try {
+      const row = await insertBlank();
+      rows.unshift(row);            // 새 행은 항상 맨 위
+      // 새 행은 배포일이 비어 있으므로 검색·기간 조건을 풀어서 바로 보이게 함
+      query = ""; $("searchInput").value = "";
+      $("dateFrom").value = ""; $("dateTo").value = ""; dateFrom = ""; dateTo = "";
+      $("dateRange").classList.remove("active");
+      freshId = row.id;
+      render();
+      document.querySelector(".table-scroll").scrollTo({ top: 0, left: 0 });
+      const first = tbody.querySelector(`tr[data-id="${CSS.escape(row.id)}"] .ed`);
+      if (first) first.focus();
+    } catch (e) {
+      console.error(e);
+      alert("행 추가 중 오류가 발생했습니다.\n" + (e.message || e));
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  $("btnHealth").addEventListener("click", async () => {
+    const btn = $("btnHealth");
+    if (!useSupabase) {
+      alert("로컬 미리보기 모드입니다.\nindex.html 상단 SUPABASE_CONFIG에 url과 anonKey를 넣으면 Supabase에 연결됩니다.");
+      return;
+    }
+    btn.disabled = true;
+    try {
+      const { count, error } = await db.from(TABLE).select("id", { count: "exact", head: true });
+      if (error) throw error;
+      setMode(`Supabase 연동 (${CFG.url.replace(/^https?:\/\//, "")})`);
+      alert(`연결 정상입니다. (${TABLE} 테이블 ${count ?? 0}건)`);
+    } catch (e) {
+      setMode("연결 오류", "error");
+      alert("연결에 실패했습니다.\n" + (e.message || e));
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  /* ---------- CSV 다운로드 (현재 화면에 보이는 목록 기준) ---------- */
+  const CSV_HEADERS = {
+    rms_no: "티켓번호",
+    stg_review_at: "STG 검수일시", stg_reviewer: "STG 검수자",
+    prod_review_at: "운영 검수일시", prod_reviewer: "운영 검수자",
+  };
+  function csvValue(col, v) {
+    if (v === null || v === undefined) return "";
+    if (col.type === "datetime") return toInputValue(col, v).replace("T", " ");
+    if (col.type === "time") return toInputValue(col, v);
+    return String(v);
+  }
+  function csvCell(v) {
+    const s = String(v);
+    return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  }
+  $("csvBtn").addEventListener("click", () => {
+    const list = filtered();
+    if (list.length === 0) { alert("내보낼 항목이 없습니다."); return; }
+    const header = COLUMNS.map((c) => CSV_HEADERS[c.key] || c.label);
+    const lines = [header, ...list.map((r) => COLUMNS.map((c) => csvValue(c, r[c.key])))]
+      .map((row) => row.map(csvCell).join(","));
+    // BOM(\uFEFF)을 붙여야 엑셀에서 한글이 깨지지 않습니다
+    const blob = new Blob(["\uFEFF" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+    const d = new Date();
+    const stamp = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
+    const range = (dateFrom || dateTo) ? `_${(dateFrom || "").replace(/-/g, "")}-${(dateTo || "").replace(/-/g, "")}` : "";
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `배포관리목록${range}_${stamp}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+
+  $("brandHome").addEventListener("click", () => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    document.querySelector(".table-scroll").scrollTo({ top: 0, left: 0, behavior: "smooth" });
+  });
+
+  reload();
+})();
+</script>
+</body>
+</html>
