@@ -4,7 +4,7 @@
   "private": true,
   "description": "업무관리 시트 - Vercel 서버리스 API (데이터 저장용)",
   "engines": {
-    "node": "20.x"
+    "node": "24.x"
   },
   "dependencies": {
     "@vercel/kv": "^2.0.0"
