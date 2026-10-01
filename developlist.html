@@ -15,8 +15,15 @@
      Supabase 대시보드 > Project Settings > API 에서 복사하세요.
      (anon key는 브라우저 공개용 키라 HTML에 넣어도 되는 값입니다.)
 
-     값을 비워두면 "로컬 미리보기 모드"로 동작합니다(브라우저에만 임시 저장).
+     연결 우선순위: ① API_BASE(Vercel API) → ② SUPABASE_CONFIG → ③ 로컬 미리보기
+     둘 다 비워두면 "로컬 미리보기 모드"로 동작합니다(브라우저에만 임시 저장).
      ========================================================= */
+
+  // ① Vercel API 방식 (권장) — 업무관리(webapp)와 같은 works-beige 프로젝트에
+  //    /api/deployments API가 만들어진 뒤 주소를 넣으세요. 키를 HTML에 넣을 필요가 없습니다.
+  window.API_BASE = "https://works-beige.vercel.app";   // 예: "https://works-beige.vercel.app"
+
+  // ② Supabase 직접 연결 방식 — API_BASE를 비워둔 경우에만 사용
   window.SUPABASE_CONFIG = {
     url: "",      // 예: "https://abcdefgh.supabase.co"
     anonKey: "",  // 예: "eyJhbGciOiJIUzI1NiIsInR5cCI6..."
@@ -308,8 +315,23 @@
   const TABLE = CFG.table || "deployments";
   const TICKET_BASE = window.TICKET_BASE_URL || "";
   const LOCAL_KEY = "deploy-list-preview";
-  const useSupabase = !!(CFG.url && CFG.anonKey && window.supabase);
-  const db = useSupabase ? window.supabase.createClient(CFG.url, CFG.anonKey) : null;
+  const API = (window.API_BASE || "").replace(/\/+$/, "");
+  const MODE = API ? "api" : (CFG.url && CFG.anonKey && window.supabase) ? "supabase" : "local";
+  const db = MODE === "supabase" ? window.supabase.createClient(CFG.url, CFG.anonKey) : null;
+  const MODE_LABEL = MODE === "api"
+    ? `Vercel API 연동 (${API.replace(/^https?:\/\//, "")})`
+    : MODE === "supabase" ? `Supabase 연동 (${CFG.url.replace(/^https?:\/\//, "")})` : "로컬 미리보기 모드";
+
+  async function api(path, options = {}) {
+    const res = await fetch(API + path, {
+      ...options,
+      headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+    });
+    let body = null;
+    try { body = await res.json(); } catch (e) {}
+    if (!res.ok) throw new Error((body && (body.error || body.message)) || `HTTP ${res.status}`);
+    return body || {};
+  }
 
   /* 컬럼 정의 — 시트4 순서와 동일. rms_no 컬럼은 화면에서 "티켓번호"로 표시 */
   const COLUMNS = [
@@ -385,11 +407,11 @@
     if (kind === "ok") statusTimer = setTimeout(() => { el.textContent = ""; }, 1800);
   }
 
-  if (useSupabase) {
-    setMode(`Supabase 연동 (${CFG.url.replace(/^https?:\/\//, "")})`);
+  if (MODE === "local") {
+    setMode(MODE_LABEL, "local");
+    showNotice("로컬 미리보기 모드입니다. 입력한 데이터는 이 브라우저에만 임시 저장돼요. 파일 상단 <code>API_BASE</code>(Vercel API) 또는 <code>SUPABASE_CONFIG</code>를 설정하면 서버에 저장됩니다.");
   } else {
-    setMode("로컬 미리보기 모드", "local");
-    showNotice("로컬 미리보기 모드입니다. 입력한 데이터는 이 브라우저에만 임시 저장돼요. index.html 상단 <code>SUPABASE_CONFIG</code>에 url과 anonKey를 넣으면 Supabase에 저장됩니다.");
+    setMode(MODE_LABEL);
   }
 
   /* ---------- 데이터 계층 ---------- */
@@ -399,7 +421,11 @@
   };
 
   async function fetchRows() {
-    if (!useSupabase) {
+    if (MODE === "api") {
+      const data = await api("/api/deployments");
+      return data.deployments || [];
+    }
+    if (MODE === "local") {
       return local.read().sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
     }
     const { data, error } = await db.from(TABLE).select("*").order("created_at", { ascending: false });
@@ -407,7 +433,11 @@
     return data || [];
   }
   async function insertBlank() {
-    if (!useSupabase) {
+    if (MODE === "api") {
+      const data = await api("/api/deployments", { method: "POST", body: "{}" });
+      return data.deployment;
+    }
+    if (MODE === "local") {
       const row = { id: crypto.randomUUID(), created_at: new Date().toISOString() };
       COLUMNS.forEach((c) => (row[c.key] = null));
       const list = local.read(); list.push(row); local.write(list);
@@ -418,7 +448,11 @@
     return data;
   }
   async function updateField(id, key, value) {
-    if (!useSupabase) {
+    if (MODE === "api") {
+      await api(`/api/deployments/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify({ [key]: value }) });
+      return;
+    }
+    if (MODE === "local") {
       const list = local.read();
       const r = list.find((x) => x.id === id);
       if (r) { r[key] = value; local.write(list); }
@@ -428,7 +462,11 @@
     if (error) throw error;
   }
   async function deleteRows(ids) {
-    if (!useSupabase) {
+    if (MODE === "api") {
+      await api("/api/deployments", { method: "DELETE", body: JSON.stringify({ ids }) });
+      return;
+    }
+    if (MODE === "local") {
       local.write(local.read().filter((r) => !ids.includes(r.id)));
       return;
     }
@@ -571,7 +609,9 @@
       console.error(e);
       rows = [];
       setMode("연결 오류", "error");
-      showNotice(`데이터를 불러오지 못했습니다. <code>SUPABASE_CONFIG</code> 값과 <code>${esc(TABLE)}</code> 테이블 생성 여부를 확인해주세요. (${esc(e.message || e)})`, true);
+      showNotice(MODE === "api"
+        ? `데이터를 불러오지 못했습니다. <code>${esc(API)}/api/deployments</code> API가 배포되어 있는지 확인해주세요. (${esc(e.message || e)})`
+        : `데이터를 불러오지 못했습니다. <code>SUPABASE_CONFIG</code> 값과 <code>${esc(TABLE)}</code> 테이블 생성 여부를 확인해주세요. (${esc(e.message || e)})`, true);
     }
     render();
   }
@@ -715,16 +755,22 @@
 
   $("btnHealth").addEventListener("click", async () => {
     const btn = $("btnHealth");
-    if (!useSupabase) {
-      alert("로컬 미리보기 모드입니다.\nindex.html 상단 SUPABASE_CONFIG에 url과 anonKey를 넣으면 Supabase에 연결됩니다.");
+    if (MODE === "local") {
+      alert("로컬 미리보기 모드입니다.\n파일 상단 API_BASE 또는 SUPABASE_CONFIG를 설정하면 서버에 연결됩니다.");
       return;
     }
     btn.disabled = true;
     try {
-      const { count, error } = await db.from(TABLE).select("id", { count: "exact", head: true });
-      if (error) throw error;
-      setMode(`Supabase 연동 (${CFG.url.replace(/^https?:\/\//, "")})`);
-      alert(`연결 정상입니다. (${TABLE} 테이블 ${count ?? 0}건)`);
+      let count;
+      if (MODE === "api") {
+        count = ((await api("/api/deployments")).deployments || []).length;
+      } else {
+        const res = await db.from(TABLE).select("id", { count: "exact", head: true });
+        if (res.error) throw res.error;
+        count = res.count;
+      }
+      setMode(MODE_LABEL);
+      alert(`연결 정상입니다. (배포 항목 ${count ?? 0}건)`);
     } catch (e) {
       setMode("연결 오류", "error");
       alert("연결에 실패했습니다.\n" + (e.message || e));
