@@ -813,166 +813,6 @@ function renderDashboard() {
         ${t.priority ? pillHtml(t.priority, priorityTone(t.priority)) : ""}
         ${pillHtml(t.status || "-", statusTone(t.status))}
       </div>`).join("")}</div>` : `<p class="dash-empty">차주로 예정된 업무가 없습니다.</p>`);
-
-  renderCapacityCard(tasks);
-  renderThroughputCard(tasks);
-  renderBlockerCard(tasks);
-  renderOptionsCard(tasks);
-}
-
-// ---------- Capacity (인력 대비 처리 능력) ----------
-
-function capacityConfig() {
-  const headcount = state.settings.headcount || DEFAULT_HEADCOUNT;
-  const weekDays = state.settings.weekDays || DEFAULT_WEEK_DAYS;
-  return { headcount, weekDays };
-}
-
-function renderCapacityCard(tasks) {
-  const { headcount, weekDays } = capacityConfig();
-  const rows = ROLES.map(r => {
-    const heads = num(headcount[r]);
-    const capacity = heads * weekDays;                       // 주당 인일
-    const usedDays = sumHoursByRole(tasks)[r] / HOURS_PER_DAY; // 이번 달 누적 투입 인일
-    return { role: r, heads, capacity, usedDays };
-  });
-  const totalHeads = rows.reduce((a, x) => a + x.heads, 0);
-  const totalCapacity = rows.reduce((a, x) => a + x.capacity, 0);
-
-  const staffingLine = ROLES.filter(r => num(headcount[r]) > 0)
-    .map(r => `${r} ${num(headcount[r])}`).join(" / ");
-
-  document.getElementById("dashCapacityCard").innerHTML = `
-    <h3>투입 인력 대비 처리 능력(Capacity)</h3>
-    <p class="card-lead">현재 <strong>${totalHeads}명</strong>(${escapeHtml(staffingLine)})의 전담 인력으로
-      주당 <strong>${totalCapacity}인일</strong>의 처리 능력을 확보하고 있으며,
-      기획 → 디자인 → 퍼블리싱 연계 순서에 따라 우선순위 기준으로 순차 진행하고 있습니다.</p>
-    <table class="summary-table">
-      <thead><tr><th>구분</th><th>인원</th><th>주당 Capacity</th><th>월 누적 투입</th></tr></thead>
-      <tbody>
-        ${rows.map(x => `<tr>
-          <td>${x.role}</td>
-          <td>${x.heads}명</td>
-          <td>${x.capacity}인일 (${x.heads}×${weekDays}일)</td>
-          <td>${x.usedDays.toFixed(1)}인일</td>
-        </tr>`).join("")}
-        <tr class="total-row">
-          <td>계</td><td>${totalHeads}명</td><td>${totalCapacity}인일/주</td>
-          <td>${rows.reduce((a, x) => a + x.usedDays, 0).toFixed(1)}인일</td>
-        </tr>
-      </tbody>
-    </table>`;
-}
-
-// ---------- 주간 처리량 / 다음 주 예상 ----------
-
-function weekRangeOf(offsetWeeks) {
-  const base = new Date(); base.setHours(0, 0, 0, 0);
-  const dow = base.getDay();
-  const monday = new Date(base);
-  monday.setDate(base.getDate() - ((dow + 6) % 7) + offsetWeeks * 7);
-  const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6);
-  return { start: toDateStr(monday), end: toDateStr(sunday) };
-}
-
-function inRange(d, r) { return d && d >= r.start && d <= r.end; }
-
-function renderThroughputCard(tasks) {
-  const thisWeek = weekRangeOf(0);
-  const active = tasks.filter(t => t.status !== "취소");
-
-  const requested = active.filter(t => inRange(t.receivedDate, thisWeek)).length;
-  const completed = active.filter(t => t.status === "완료" && inRange(t.doneDate, thisWeek)).length;
-  const working = active.filter(t => ["진행", "개발", "검수"].includes(t.status)).length;
-  const isNew = active.filter(t => inRange(t.receivedDate, thisWeek) && t.kind === "신규").length;
-  const isFix = active.filter(t => inRange(t.receivedDate, thisWeek) && t.kind === "수정").length;
-
-  // 최근 4주 완료 실적으로 다음 주 예상 처리량 산출
-  const weekly = [0, -1, -2, -3].map(off => {
-    const r = weekRangeOf(off);
-    return active.filter(t => t.status === "완료" && inRange(t.doneDate, r)).length;
-  });
-  const past = weekly.slice(1).filter(v => v > 0);
-  const avg = past.length ? past.reduce((a, b) => a + b, 0) / past.length : completed;
-  const lo = Math.max(0, Math.floor(avg * 0.85));
-  const hi = Math.ceil(avg * 1.15);
-
-  document.getElementById("dashThroughputCard").innerHTML = `
-    <h3>이번 주 처리량 (${thisWeek.start.slice(5).replace("-", "/")} ~ ${thisWeek.end.slice(5).replace("-", "/")})</h3>
-    <div class="throughput-grid">
-      <div class="throughput-item"><span class="tp-value">${requested}</span><span class="tp-label">요청 업무</span></div>
-      <div class="throughput-item"><span class="tp-value">${completed}</span><span class="tp-label">완료</span></div>
-      <div class="throughput-item"><span class="tp-value">${working}</span><span class="tp-label">진행 중</span></div>
-      <div class="throughput-item"><span class="tp-value">${isNew}</span><span class="tp-label">신규 요청</span></div>
-      <div class="throughput-item"><span class="tp-value">${isFix}</span><span class="tp-label">수정 반영</span></div>
-    </div>
-    <p class="card-lead">최근 4주 주 평균 처리량은 <strong>${avg.toFixed(1)}건</strong>이며,
-      다음 주 예상 처리 가능량은 <strong>약 ${lo}~${hi}건</strong>입니다.</p>`;
-}
-
-// ---------- 병목 구분 ----------
-
-function renderBlockerCard(tasks) {
-  const open = tasks.filter(t => !["완료", "취소"].includes(t.status));
-  const buckets = OPTIONS.병목.map(label => ({
-    label,
-    meta: BLOCKER_META[label],
-    items: open.filter(t => t.blocker === label)
-  }));
-  const unset = open.filter(t => !t.blocker);
-
-  const waitingCount = buckets.find(b => b.label === "고객 자료/의사결정 대기").items.length;
-  const riskCount = buckets.find(b => b.label === "일정 영향 가능").items.length;
-
-  document.getElementById("dashBlockerCard").innerHTML = `
-    <h3>진행 상태 / 병목 구분</h3>
-    <p class="card-lead">미완료 ${open.length}건 중 <strong>${waitingCount}건</strong>은 고객사 자료·의사결정 대기 상태이며,
-      <strong>${riskCount}건</strong>은 일정에 영향을 줄 수 있는 항목입니다.
-      내부 작업 지연과 외부 대기 요인을 구분해 관리하고 있습니다.</p>
-    <div class="blocker-grid">
-      ${buckets.map(b => `
-        <div class="blocker-box blocker-${b.meta.tone}">
-          <div class="blocker-head"><span>${b.meta.dot}</span><span>${b.label}</span></div>
-          <div class="blocker-count">${b.items.length}건</div>
-          <ul class="blocker-items">
-            ${b.items.slice(0, 4).map(t => `<li>${escapeHtml(t.title) || "(업무명 미입력)"}</li>`).join("")
-              || `<li class="blocker-none">해당 없음</li>`}
-            ${b.items.length > 4 ? `<li class="blocker-more">외 ${b.items.length - 4}건</li>` : ""}
-          </ul>
-        </div>`).join("")}
-    </div>
-    ${unset.length ? `<p class="dash-empty">※ 병목구분 미지정 ${unset.length}건 — 업무현황 탭의 '병목구분' 열에서 지정하면 위 분류에 반영됩니다.</p>` : ""}`;
-}
-
-// ---------- 선택지 제시 ----------
-
-function renderOptionsCard(tasks) {
-  const open = tasks.filter(t => !["완료", "취소"].includes(t.status)).length;
-  const { headcount, weekDays } = capacityConfig();
-  const totalHeads = ROLES.reduce((a, r) => a + num(headcount[r]), 0);
-
-  document.getElementById("dashOptionsCard").innerHTML = `
-    <h3>일정 운영 선택지</h3>
-    <p class="card-lead">현재 인력 기준으로 일정 내 최대한 완료할 수 있도록 우선순위와 투입량을 관리하고 있습니다.
-      잔여 <strong>${open}건</strong>의 처리 방식은 아래 세 가지 중에서 선택할 수 있습니다.</p>
-    <div class="option-grid">
-      <div class="option-box">
-        <div class="option-num">①</div>
-        <div class="option-title">현재 인력 유지</div>
-        <div class="option-desc">우선순위 기준 순차 완료. 후순위 업무의 완료 시점은 조정됩니다.</div>
-      </div>
-      <div class="option-box">
-        <div class="option-num">②</div>
-        <div class="option-title">일정 유지 + 전체 동시 진행</div>
-        <div class="option-desc">현재 ${totalHeads}명(주 ${totalHeads * weekDays}인일) 기준 Capacity를 초과하므로 추가 인력이 필요합니다.</div>
-      </div>
-      <div class="option-box">
-        <div class="option-num">③</div>
-        <div class="option-title">인력 유지 + 전체 완료</div>
-        <div class="option-desc">현재 처리 속도 기준으로 완료 일정 조정이 필요합니다.</div>
-      </div>
-    </div>
-    <p class="card-note">협조사항 : 원활한 일정 준수를 위해 자료 및 검토 의견은 우선순위에 따라 순차적으로 전달 부탁드립니다.</p>`;
 }
 
 // ---------------- Settings modal ----------------
@@ -982,41 +822,10 @@ function openSettings() {
   modal.style.display = "flex";
   const form = document.getElementById("settingsForm");
   form.innerHTML = "";
-
-  if (!state.settings.headcount) state.settings.headcount = { ...DEFAULT_HEADCOUNT };
-  if (!state.settings.weekDays) state.settings.weekDays = DEFAULT_WEEK_DAYS;
-
-  const sec1 = document.createElement("div");
-  sec1.innerHTML = `<h4 class="settings-section">투입 인력 (명)</h4>`;
-  form.appendChild(sec1);
   ROLES.forEach(r => {
     const row = document.createElement("div");
     row.className = "settings-row";
-    row.innerHTML = `<label>${r}</label>`;
-    const inp = document.createElement("input");
-    inp.type = "number"; inp.step = "1"; inp.min = "0";
-    inp.value = state.settings.headcount[r] ?? DEFAULT_HEADCOUNT[r] ?? 0;
-    inp.oninput = () => { state.settings.headcount[r] = parseFloat(inp.value) || 0; };
-    row.appendChild(inp);
-    form.appendChild(row);
-  });
-
-  const wdRow = document.createElement("div");
-  wdRow.className = "settings-row";
-  wdRow.innerHTML = `<label>주 근무일</label>`;
-  const wdInp = document.createElement("input");
-  wdInp.type = "number"; wdInp.value = state.settings.weekDays || DEFAULT_WEEK_DAYS;
-  wdInp.oninput = () => { state.settings.weekDays = parseInt(wdInp.value) || DEFAULT_WEEK_DAYS; };
-  wdRow.appendChild(wdInp);
-  form.appendChild(wdRow);
-
-  const sec2 = document.createElement("div");
-  sec2.innerHTML = `<h4 class="settings-section">월 기준 MM</h4>`;
-  form.appendChild(sec2);
-  ROLES.forEach(r => {
-    const row = document.createElement("div");
-    row.className = "settings-row";
-    row.innerHTML = `<label>${r}</label>`;
+    row.innerHTML = `<label>${r} 기준 MM</label>`;
     const inp = document.createElement("input");
     inp.type = "number"; inp.step = "0.1";
     inp.value = state.settings.targetMM[r] ?? DEFAULT_TARGET_MM[r] ?? 0;
@@ -1024,15 +833,14 @@ function openSettings() {
     row.appendChild(inp);
     form.appendChild(row);
   });
-
-  const mdRow = document.createElement("div");
-  mdRow.className = "settings-row";
-  mdRow.innerHTML = `<label>월 업무일수</label>`;
-  const mdInp = document.createElement("input");
-  mdInp.type = "number"; mdInp.value = state.settings.workDays || 20;
-  mdInp.oninput = () => { state.settings.workDays = parseInt(mdInp.value) || 20; };
-  mdRow.appendChild(mdInp);
-  form.appendChild(mdRow);
+  const wdRow = document.createElement("div");
+  wdRow.className = "settings-row";
+  wdRow.innerHTML = `<label>업무일수</label>`;
+  const wdInp = document.createElement("input");
+  wdInp.type = "number"; wdInp.value = state.settings.workDays || 20;
+  wdInp.oninput = () => { state.settings.workDays = parseInt(wdInp.value) || 20; };
+  wdRow.appendChild(wdInp);
+  form.appendChild(wdRow);
 
   document.getElementById("btnSettingsClose").onclick = () => { modal.style.display = "none"; };
   document.getElementById("btnSettingsSave").onclick = async () => {

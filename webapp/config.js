@@ -5,7 +5,7 @@
 
 // 배포용 API 베이스 URL. Vercel에 배포한 뒤 여기 본인의 API 주소를 넣으세요.
 // 비워두면(빈 문자열) 브라우저 localStorage에 저장되는 데모 모드로 동작합니다.
-const API_BASE = "https://works-beige.vercel.app"; // 예: "https://your-project.vercel.app"
+const API_BASE = ""; // 예: "https://your-project.vercel.app"
 
 // 대분류
 const MAJOR_CATEGORIES = ["기업", "소상공인", "GA", "공통", "SI"];
@@ -19,22 +19,13 @@ const MINOR_CATEGORY_MAP = {
   "SI": ["기타"]
 };
 
-// 구분 / 중요도 / 진행현황 / 배포 / 검수여부 / 병목구분
+// 구분 / 중요도 / 진행현황 / 배포 / 검수여부
 const OPTIONS = {
   배포: ["O", "X", "-"],
   구분: ["신규", "수정", "기타"],
   중요도: ["긴급", "상", "중", "하", "-"],
   진행현황: ["예정", "접수", "검토", "대기", "진행", "검수", "완료", "개발", "보류", "취소"],
-  검수여부: ["O", "X", "-"],
-  병목: ["진행 가능", "고객 자료/의사결정 대기", "내부 작업 진행", "일정 영향 가능"]
-};
-
-// 병목 구분별 표시 색상 (대시보드 범례)
-const BLOCKER_META = {
-  "진행 가능": { dot: "🟢", tone: "ok" },
-  "고객 자료/의사결정 대기": { dot: "🟡", tone: "waiting" },
-  "내부 작업 진행": { dot: "🔵", tone: "internal" },
-  "일정 영향 가능": { dot: "🔴", tone: "risk" }
+  검수여부: ["O", "X", "-"]
 };
 
 // 집계에서 제외되는 진행현황(취소)
@@ -59,12 +50,6 @@ const DEFAULT_TARGET_MM = { 기획: 2, 디자인: 2, 퍼블: 3, GA: 1, PM: 1 };
 
 // MM 환산 기준 (총합 H ÷ MM_HOURS = MM)
 const MM_HOURS = 160;
-
-// Capacity(처리 능력) 기본값 — 투입 인원수 × 주 근무일 = 주당 인일(person-day)
-// "기준 설정" 팝업에서 조정할 수 있습니다.
-const DEFAULT_HEADCOUNT = { 기획: 3, 디자인: 2, 퍼블: 2, GA: 1, PM: 1 };
-const DEFAULT_WEEK_DAYS = 5;   // 주 근무일
-const HOURS_PER_DAY = 8;       // 1인일 = 8시간 (인일 환산 기준)
 
 // 업무현황 시트 컬럼 정의 (표시 순서)
 // type: text | textarea | select | select-dependent | shortdate | number | readonly | ticket
@@ -91,7 +76,6 @@ const COLUMNS = [
   { key: "dueDate", label: "완료예정", type: "shortdate", width: 54, group: "schedule" },
   { key: "doneDate", label: "완료일", type: "shortdate", width: 54, group: "schedule" },
   { key: "status", label: "진행현황", type: "select", options: OPTIONS.진행현황, width: 76, group: "schedule" },
-  { key: "blocker", label: "병목구분", type: "select", options: OPTIONS.병목, width: 110, group: "schedule" },
   { key: "reviewed", label: "검수(U+)", type: "select", options: OPTIONS.검수여부, width: 66, group: "schedule" },
   { key: "hPlanner", label: "기획", type: "number", width: 34, group: "hours" },
   { key: "hDesigner", label: "디자인", type: "number", width: 34, group: "hours" },
@@ -112,7 +96,7 @@ function emptyTask() {
     reqTeam: "", reqPerson: "", pm: "",
     planner: "", designer: "", publisher: "", developer: "", ga: "",
     receivedDate: "", startDate: "", dueDate: "", doneDate: "",
-    status: "", blocker: "", reviewed: "",
+    status: "", reviewed: "",
     hPlanner: "", hDesigner: "", hPublisher: "", hGa: "", hPm: "",
     note: ""
   };
@@ -126,8 +110,7 @@ function redmineUrl(ticket) {
 // 브라우저(app.js)와 Node(Vercel API) 양쪽에서 사용할 수 있도록 export
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
-    API_BASE, MAJOR_CATEGORIES, MINOR_CATEGORY_MAP, OPTIONS, BLOCKER_META, EXCLUDED_STATUS,
-    ASSIGNEE_OPTIONS, GA_OPTIONS, DEFAULT_TARGET_MM, DEFAULT_HEADCOUNT, DEFAULT_WEEK_DAYS,
-    HOURS_PER_DAY, MM_HOURS, COLUMNS, emptyTask, redmineUrl
+    API_BASE, MAJOR_CATEGORIES, MINOR_CATEGORY_MAP, OPTIONS, EXCLUDED_STATUS,
+    ASSIGNEE_OPTIONS, GA_OPTIONS, DEFAULT_TARGET_MM, MM_HOURS, COLUMNS, emptyTask, redmineUrl
   };
 }
