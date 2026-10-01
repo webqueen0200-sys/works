@@ -384,6 +384,8 @@
 
   /* 구성원 목록 — 기획 / 퍼블리싱 / 검수자 드롭다운에 사용 */
   const MEMBERS = ["", "김은영", "송승현", "전*현", "전*혜", "김*윤", "최*", "이*희"];
+  /* 기획 담당자 목록 — 구성원 목록에서 전*현(전상현) 제외 */
+  const PLANNERS = MEMBERS.filter((m) => m !== "전*현");
 
   /* 컬럼 정의 — 시트4 순서와 동일. rms_no 컬럼은 화면에서 "티켓번호"로 표시 */
   const COLUMNS = [
@@ -398,7 +400,7 @@
     { key: "task_name",      label: "업무명",        type: "textarea", w: 300, placeholder: "업무명 입력" },
     { key: "file_list",      label: "파일목록",      type: "textarea", w: 240 },
     { key: "requester",      label: "요청자",        type: "text",     w: 80 },
-    { key: "planner",        label: "기획",          type: "select",   w: 88, options: MEMBERS },
+    { key: "planner",        label: "기획",          type: "select",   w: 88, options: PLANNERS },
     { key: "publisher",      label: "퍼블리싱",      type: "select",   w: 88, options: MEMBERS },
     { key: "developer",      label: "개발담당자",    type: "text",     w: 84 },
     { key: "impact",         label: "타서비스 영향도", type: "textarea", w: 240 },
