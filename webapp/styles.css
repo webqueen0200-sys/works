@@ -320,7 +320,7 @@ tbody td {
   padding: 2px 4px;
   vertical-align: top;
 }
-tbody tr:hover { background: var(--surface-pearl); }
+tbody tr:hover > td { background: var(--surface-pearl); }
 
 tbody input, tbody select, tbody textarea {
   width: 100%;
@@ -391,6 +391,26 @@ tbody input:focus, tbody select:focus, tbody textarea:focus {
   color: var(--ink-muted-48);
   pointer-events: none;
 }
+
+.row-done-btn {
+  border: 1px solid var(--hairline);
+  background: var(--canvas);
+  color: var(--ink-muted-80);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 9px;
+  border-radius: var(--r-pill);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.row-done-btn:hover { border-color: var(--primary); color: var(--primary); }
+.row-done-btn:active { transform: scale(0.95); }
+.row-done-btn.is-done {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+.row-done-btn.is-done:hover { background: var(--primary-focus); color: #fff; }
 
 .row-del {
   border: none;
@@ -471,7 +491,7 @@ tbody input:focus, tbody select:focus, tbody textarea:focus {
   padding: 28px;
   width: 320px;
 }
-.modal-box-wide { width: 560px; }
+.modal-box-wide { width: 680px; max-width: 92vw; }
 .modal-desc {
   margin: -8px 0 16px;
   font-size: 12.5px;
@@ -512,12 +532,12 @@ tbody input:focus, tbody select:focus, tbody textarea:focus {
 
 .assignee-form {
   display: flex;
-  gap: 14px;
-  flex-wrap: wrap;
+  gap: 12px;
+  flex-wrap: nowrap;   /* 기획·디자인·퍼블·GA 4열을 한 줄로 */
 }
 .assignee-col {
-  flex: 1 1 120px;
-  min-width: 120px;
+  flex: 1 1 0;
+  min-width: 0;
 }
 .assignee-col h4 {
   margin: 0 0 8px;
@@ -835,13 +855,15 @@ tbody input:focus, tbody select:focus, tbody textarea:focus {
 }
 .date-btn:hover { opacity: 1; background: rgba(0, 102, 204, 0.1); }
 
-/* 진행현황별 행 배경 */
-tbody tr.row-progress { background: #eaf4fd; }
-tbody tr.row-progress:hover { background: #dcecfa; }
-tbody tr.row-done,
-tbody tr.row-closed { background: #f2f2f4; }
-tbody tr.row-done:hover,
-tbody tr.row-closed:hover { background: #e9e9ec; }
+/* 진행현황별 행 배경
+   tr에 background를 주면 border-collapse 테이블에서 셀에 가려 안 보이는 경우가 있어
+   각 셀(td)에 직접 지정합니다. */
+tbody tr.row-progress > td { background: #e3f2fd; }
+tbody tr.row-progress:hover > td { background: #d3e9fa; }
+tbody tr.row-done > td,
+tbody tr.row-closed > td { background: #ebebed; }
+tbody tr.row-done:hover > td,
+tbody tr.row-closed:hover > td { background: #e1e1e4; }
 tbody tr.row-done .readonly-cell,
 tbody tr.row-done input,
 tbody tr.row-done select,

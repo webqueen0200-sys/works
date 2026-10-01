@@ -360,6 +360,22 @@ async function addRow() {
   renderDashboard();
 }
 
+// "완료" 버튼: 완료 ↔ 진행 전환. 완료로 바꿀 때 완료일이 비어있으면 오늘 날짜를 채웁니다.
+async function toggleDone(id) {
+  const t = state.tasks.find(x => x.id === id);
+  if (!t) return;
+  if (t.status === "완료") {
+    t.status = "진행";
+  } else {
+    t.status = "완료";
+    if (!t.doneDate) t.doneDate = todayStr();
+  }
+  await persistTasks(state.currentMonth, state.tasks);
+  await apiUpdateTask(state.currentMonth, id, t);
+  renderSheet();
+  renderDashboard();
+}
+
 async function deleteRow(id) {
   if (!confirm("이 업무 행을 삭제할까요?")) return;
   state.tasks = state.tasks.filter(t => t.id !== id);
@@ -461,6 +477,7 @@ function renderSheet() {
     i += span;
   }
   const actionsTh = document.createElement("th");
+  actionsTh.colSpan = 2;
   actionsTh.textContent = "";
   theadGroup.appendChild(actionsTh);
 
@@ -476,6 +493,9 @@ function renderSheet() {
     th.onclick = () => toggleSort(col.key);
     theadCols.appendChild(th);
   });
+  const thDone = document.createElement("th");
+  thDone.textContent = "완료";
+  theadCols.appendChild(thDone);
   const th2 = document.createElement("th");
   th2.textContent = "삭제";
   theadCols.appendChild(th2);
@@ -495,6 +515,16 @@ function renderSheet() {
       td.appendChild(renderCell(task, col));
       tr.appendChild(td);
     });
+    const doneTd = document.createElement("td");
+    const doneBtn = document.createElement("button");
+    const isDone = task.status === "완료";
+    doneBtn.className = "row-done-btn" + (isDone ? " is-done" : "");
+    doneBtn.textContent = isDone ? "완료됨" : "완료";
+    doneBtn.title = isDone ? "클릭하면 '진행'으로 되돌립니다" : "클릭하면 '완료'로 변경하고 완료일을 오늘로 채웁니다";
+    doneBtn.onclick = () => toggleDone(task.id);
+    doneTd.appendChild(doneBtn);
+    tr.appendChild(doneTd);
+
     const delTd = document.createElement("td");
     const delBtn = document.createElement("button");
     delBtn.className = "row-del";
