@@ -317,6 +317,7 @@ function bindGlobalControls() {
   document.getElementById("csvFileInput").onchange = handleCsvFile;
   document.getElementById("btnCsvTemplate").onclick = exportCsvTemplate;
   document.getElementById("btnCategorySettings").onclick = openCategorySettings;
+  document.getElementById("btnHealth").onclick = checkConnection;
   document.getElementById("btnDashRefresh").onclick = renderDashboard;
   document.getElementById("brandHome").onclick = () => setView("dashboard");
   document.getElementById("btnWeeklyReport").onclick = generateWeeklyReport;
@@ -1300,6 +1301,55 @@ async function replaceTasksOnServer(month, tasks) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ month, tasks })
   });
+}
+
+// ---------------- 연결 확인 (진단) ----------------
+
+async function checkConnection() {
+  if (!API_BASE) {
+    alert("현재 로컬 데모 모드입니다.\nconfig.js의 API_BASE에 Vercel 주소를 넣으면 서버와 연결됩니다.");
+    return;
+  }
+  const btn = document.getElementById("btnHealth");
+  btn.disabled = true;
+  const label = btn.textContent;
+  btn.textContent = "확인 중...";
+  try {
+    const res = await fetch(`${API_BASE}/api/health`);
+    if (!res.ok) {
+      alert(
+        `API 응답 오류 (${res.status})\n\n` +
+        `주소: ${API_BASE}/api/health\n\n` +
+        `api 폴더가 저장소에 올라가 있는지, Vercel 배포가 성공했는지 확인해주세요.`
+      );
+      return;
+    }
+    const d = await res.json();
+    if (d.kvEnvDetected && d.ok) {
+      alert(`연결 정상입니다.\n\nAPI: ${d.api}\nNode: ${d.node}\nKV: ${d.kv}`);
+    } else {
+      alert(
+        `API는 살아있지만 데이터 저장소(KV)가 연결되지 않았습니다.\n\n` +
+        `KV 상태: ${d.kv || "미연결"}\n` +
+        `${d.kvError ? "오류: " + d.kvError + "\n" : ""}` +
+        `\n해결: Vercel 프로젝트 > Storage 탭 > Create Database > KV(Upstash Redis) 생성 > Connect > Redeploy`
+      );
+    }
+  } catch (err) {
+    alert(
+      `서버에 연결하지 못했습니다. (Failed to fetch)\n\n` +
+      `주소: ${API_BASE}/api/health\n\n` +
+      `원인은 보통 아래 둘 중 하나입니다.\n` +
+      `1) Vercel 배포가 실패해서 /api 주소가 존재하지 않음\n` +
+      `2) config.js의 API_BASE 주소가 실제 배포 주소와 다름\n\n` +
+      `위 주소를 브라우저 주소창에 직접 붙여넣어 열어보세요.\n` +
+      `404가 뜨면 배포 문제, JSON이 보이면 주소 문제입니다.\n\n` +
+      `오류: ${err && err.message ? err.message : err}`
+    );
+  } finally {
+    btn.disabled = false;
+    btn.textContent = label;
+  }
 }
 
 // ---------------- 주간보고 작성 (주간보고_자동화_정책 기준) ----------------
