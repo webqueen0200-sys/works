@@ -209,8 +209,20 @@
   tbody .ed::placeholder { color: #c7c7cc; }
   tbody .ed:hover { border-color: var(--hairline); }
   tbody .ed:focus { border-color: var(--primary-focus); background: var(--canvas); outline: none; }
-  /* 드롭다운: 업무관리(webapp)와 동일하게 브라우저 기본 셀렉트 + 투명 테두리 */
-  tbody select.ed { line-height: normal; cursor: pointer; }
+  /* 드롭다운: 구글 시트 드롭다운 칩 스타일 (회색 알약 + ▼) */
+  tbody select.ed {
+    -webkit-appearance: none; -moz-appearance: none; appearance: none;
+    display: block; height: 24px; margin: 2px 0; padding: 0 24px 0 11px;
+    border: 1px solid transparent; border-radius: var(--r-pill);
+    background-color: #e8e8ed;
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'%3E%3Cpath d='M0 0h8L4 5z' fill='%231d1d1f'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 10px center; background-size: 8px 5px;
+    font-size: 13px; line-height: 22px; color: var(--ink);
+    cursor: pointer; text-overflow: ellipsis; white-space: nowrap;
+  }
+  tbody select.ed:hover { background-color: #dcdce1; border-color: transparent; }
+  tbody select.ed:focus { background-color: #dcdce1; border-color: var(--primary-focus); }
+  tbody select.ed option { background: var(--canvas); color: var(--ink); }
   tbody .ed.saving { border-color: rgba(0, 102, 204, 0.35); }
   tbody .ed.saved { border-color: rgba(36, 138, 61, 0.5); }
   tbody .ed.failed { border-color: var(--danger); }
@@ -304,10 +316,10 @@
     { key: "no",             label: "NO",           type: "auto",     w: 44 },  // 자동 번호(입력 불가)
     { key: "deploy_date",    label: "배포일",        type: "date",     w: 128 },
     { key: "deploy_time",    label: "시간",          type: "time",     w: 100 },
-    { key: "deploy_type",    label: "배포유형",      type: "select",   w: 76, options: ["", "정기", "비정기"] },
-    { key: "category",       label: "분류",          type: "select",   w: 88, options: ["", "기업", "소상공인"] },
-    { key: "work_type",      label: "구분",          type: "select",   w: 80, options: ["", "배포", "BO반영", "배포/BO"] },
-    { key: "scope",          label: "작업범위",      type: "select",   w: 84, options: ["", "퍼블만", "개발포함", "기획", "기획퍼블", "개발"] },
+    { key: "deploy_type",    label: "배포유형",      type: "select",   w: 82, options: ["", "정기", "비정기"] },
+    { key: "category",       label: "분류",          type: "select",   w: 96, options: ["", "기업", "소상공인"] },
+    { key: "work_type",      label: "구분",          type: "select",   w: 96, options: ["", "배포", "BO반영", "배포/BO"] },
+    { key: "scope",          label: "작업범위",      type: "select",   w: 104, options: ["", "퍼블만", "개발포함", "기획", "기획퍼블", "개발"] },
     { key: "rms_no",         label: "티켓번호",      type: "ticket",   w: 90 },
     { key: "task_name",      label: "업무명",        type: "textarea", w: 300, placeholder: "업무명 입력" },
     { key: "file_list",      label: "파일목록",      type: "textarea", w: 240 },
