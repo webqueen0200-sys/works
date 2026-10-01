@@ -19,13 +19,22 @@ const MINOR_CATEGORY_MAP = {
   "SI": ["기타"]
 };
 
-// 구분 / 중요도 / 진행현황 / 배포 / 검수여부
+// 구분 / 중요도 / 진행현황 / 배포 / 검수여부 / 병목구분
 const OPTIONS = {
   배포: ["O", "X", "-"],
   구분: ["신규", "수정", "기타"],
   중요도: ["긴급", "상", "중", "하", "-"],
   진행현황: ["예정", "접수", "검토", "대기", "진행", "검수", "완료", "개발", "보류", "취소"],
-  검수여부: ["O", "X", "-"]
+  검수여부: ["O", "X", "-"],
+  병목: ["진행 가능", "고객 자료/의사결정 대기", "내부 작업 진행", "일정 영향 가능"]
+};
+
+// 병목 구분별 표시 색상 (대시보드 범례)
+const BLOCKER_META = {
+  "진행 가능": { dot: "🟢", tone: "ok" },
+  "고객 자료/의사결정 대기": { dot: "🟡", tone: "waiting" },
+  "내부 작업 진행": { dot: "🔵", tone: "internal" },
+  "일정 영향 가능": { dot: "🔴", tone: "risk" }
 };
 
 // 집계에서 제외되는 진행현황(취소)
@@ -51,39 +60,46 @@ const DEFAULT_TARGET_MM = { 기획: 2, 디자인: 2, 퍼블: 3, GA: 1, PM: 1 };
 // MM 환산 기준 (총합 H ÷ MM_HOURS = MM)
 const MM_HOURS = 160;
 
+// Capacity(처리 능력) 기본값 — 투입 인원수 × 주 근무일 = 주당 인일(person-day)
+// "기준 설정" 팝업에서 조정할 수 있습니다.
+const DEFAULT_HEADCOUNT = { 기획: 3, 디자인: 2, 퍼블: 2, GA: 1, PM: 1 };
+const DEFAULT_WEEK_DAYS = 5;   // 주 근무일
+const HOURS_PER_DAY = 8;       // 1인일 = 8시간 (인일 환산 기준)
+
 // 업무현황 시트 컬럼 정의 (표시 순서)
-// type: text | textarea | select | select-dependent | date | number | readonly | ticket
+// type: text | textarea | select | select-dependent | shortdate | number | readonly | ticket
 const COLUMNS = [
-  { key: "no", label: "NO", type: "readonly", width: 40, group: "meta" },
+  { key: "no", label: "NO", type: "readonly", width: 36, group: "meta" },
   { key: "ticket", label: "티켓번호", type: "ticket", width: 64, group: "meta" },
-  { key: "deploy", label: "배포", type: "select", options: OPTIONS.배포, width: 56, group: "meta" },
+  { key: "deploy", label: "배포", type: "select", options: OPTIONS.배포, width: 52, group: "meta" },
   { key: "major", label: "대분류", type: "select", options: MAJOR_CATEGORIES, width: 84, group: "classify" },
   { key: "minor", label: "중분류", type: "select-dependent", dependsOn: "major", map: MINOR_CATEGORY_MAP, width: 110, group: "classify" },
-  { key: "kind", label: "구분", type: "select", options: OPTIONS.구분, width: 64, group: "classify" },
-  { key: "priority", label: "중요도", type: "select", options: OPTIONS.중요도, width: 64, group: "classify" },
+  { key: "kind", label: "구분", type: "select", options: OPTIONS.구분, width: 60, group: "classify" },
+  { key: "priority", label: "중요도", type: "select", options: OPTIONS.중요도, width: 60, group: "classify" },
   { key: "title", label: "업무명", type: "text", width: 300, group: "content" },
   { key: "detail", label: "업무상세", type: "textarea", width: 200, group: "content" },
-  { key: "reqTeam", label: "요청팀(U+)", type: "text", width: 130, group: "requester" },
-  { key: "reqPerson", label: "요청자(U+)", type: "text", width: 56, maxLength: 5, group: "requester" },
-  { key: "pm", label: "접수자(ML)", type: "text", width: 56, maxLength: 5, group: "requester" },
+  { key: "reqTeam", label: "요청팀(U+)", type: "text", width: 62, maxLength: 4, group: "requester" },
+  { key: "reqPerson", label: "요청자(U+)", type: "text", width: 62, maxLength: 4, group: "requester" },
+  { key: "pm", label: "접수자(ML)", type: "text", width: 62, maxLength: 4, group: "requester" },
   { key: "planner", label: "기획", type: "select", options: ASSIGNEE_OPTIONS.기획, width: 76, group: "assignee" },
   { key: "designer", label: "디자인", type: "select", options: ASSIGNEE_OPTIONS.디자인, width: 76, group: "assignee" },
   { key: "publisher", label: "퍼블", type: "select", options: ASSIGNEE_OPTIONS.퍼블, width: 76, group: "assignee" },
-  { key: "developer", label: "개발", type: "text", width: 56, maxLength: 5, group: "assignee" },
+  { key: "developer", label: "개발", type: "text", width: 62, maxLength: 4, group: "assignee" },
   { key: "ga", label: "GA", type: "select", options: GA_OPTIONS, width: 60, group: "assignee" },
-  { key: "receivedDate", label: "접수일", type: "date", width: 108, group: "schedule" },
-  { key: "startDate", label: "시작일", type: "date", width: 108, group: "schedule" },
-  { key: "dueDate", label: "완료예정일", type: "date", width: 108, group: "schedule" },
-  { key: "doneDate", label: "완료일", type: "date", width: 108, group: "schedule" },
+  { key: "receivedDate", label: "접수일", type: "shortdate", width: 54, group: "schedule" },
+  { key: "startDate", label: "시작일", type: "shortdate", width: 54, group: "schedule" },
+  { key: "dueDate", label: "완료예정", type: "shortdate", width: 54, group: "schedule" },
+  { key: "doneDate", label: "완료일", type: "shortdate", width: 54, group: "schedule" },
   { key: "status", label: "진행현황", type: "select", options: OPTIONS.진행현황, width: 76, group: "schedule" },
-  { key: "reviewed", label: "검수(U+)", type: "select", options: OPTIONS.검수여부, width: 72, group: "schedule" },
-  { key: "hPlanner", label: "기획(H)", type: "number", width: 44, group: "hours" },
-  { key: "hDesigner", label: "디자인(H)", type: "number", width: 44, group: "hours" },
-  { key: "hPublisher", label: "퍼블(H)", type: "number", width: 44, group: "hours" },
-  { key: "hGa", label: "GA(H)", type: "number", width: 44, group: "hours" },
-  { key: "hPm", label: "PM(H)", type: "number", width: 44, group: "hours" },
-  { key: "hTotal", label: "총합(H)", type: "readonly", width: 48, group: "hours" },
-  { key: "mm", label: "MM", type: "readonly", width: 48, group: "hours" },
+  { key: "blocker", label: "병목구분", type: "select", options: OPTIONS.병목, width: 110, group: "schedule" },
+  { key: "reviewed", label: "검수(U+)", type: "select", options: OPTIONS.검수여부, width: 66, group: "schedule" },
+  { key: "hPlanner", label: "기획", type: "number", width: 34, group: "hours" },
+  { key: "hDesigner", label: "디자인", type: "number", width: 34, group: "hours" },
+  { key: "hPublisher", label: "퍼블", type: "number", width: 34, group: "hours" },
+  { key: "hGa", label: "GA", type: "number", width: 34, group: "hours" },
+  { key: "hPm", label: "PM", type: "number", width: 34, group: "hours" },
+  { key: "hTotal", label: "총합", type: "readonly", width: 38, group: "hours" },
+  { key: "mm", label: "MM", type: "readonly", width: 44, group: "hours" },
   { key: "note", label: "비고", type: "textarea", width: 160, group: "note" }
 ];
 
@@ -96,7 +112,7 @@ function emptyTask() {
     reqTeam: "", reqPerson: "", pm: "",
     planner: "", designer: "", publisher: "", developer: "", ga: "",
     receivedDate: "", startDate: "", dueDate: "", doneDate: "",
-    status: "", reviewed: "",
+    status: "", blocker: "", reviewed: "",
     hPlanner: "", hDesigner: "", hPublisher: "", hGa: "", hPm: "",
     note: ""
   };
@@ -110,7 +126,8 @@ function redmineUrl(ticket) {
 // 브라우저(app.js)와 Node(Vercel API) 양쪽에서 사용할 수 있도록 export
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
-    API_BASE, MAJOR_CATEGORIES, MINOR_CATEGORY_MAP, OPTIONS, EXCLUDED_STATUS,
-    ASSIGNEE_OPTIONS, GA_OPTIONS, DEFAULT_TARGET_MM, MM_HOURS, COLUMNS, emptyTask, redmineUrl
+    API_BASE, MAJOR_CATEGORIES, MINOR_CATEGORY_MAP, OPTIONS, BLOCKER_META, EXCLUDED_STATUS,
+    ASSIGNEE_OPTIONS, GA_OPTIONS, DEFAULT_TARGET_MM, DEFAULT_HEADCOUNT, DEFAULT_WEEK_DAYS,
+    HOURS_PER_DAY, MM_HOURS, COLUMNS, emptyTask, redmineUrl
   };
 }

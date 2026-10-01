@@ -32,8 +32,12 @@
       <input id="searchInput" type="text" placeholder="업무명 · 업무상세 · 티켓번호 검색" />
       <span id="rowCount" class="row-count"></span>
       <button id="btnAddRow" class="btn btn-primary">+ 행 추가</button>
+      <button id="btnImport" class="btn btn-ghost">CSV 업로드</button>
       <button id="btnExport" class="btn btn-ghost">CSV 내보내기</button>
+      <button id="btnCsvTemplate" class="btn btn-ghost">양식 받기</button>
+      <input id="csvFileInput" type="file" accept=".csv,text/csv" style="display:none" />
     </div>
+    <button id="btnCategorySettings" class="btn btn-ghost">분류 설정</button>
     <button id="btnSettings" class="btn btn-ghost">기준 설정</button>
   </div>
 </div>
@@ -45,6 +49,13 @@
       <button id="btnDashRefresh" class="btn btn-ghost">새로고침</button>
     </div>
     <div id="dashKpis" class="dash-kpis"></div>
+
+    <div class="dash-lists">
+      <div id="dashCapacityCard" class="summary-card"></div>
+      <div id="dashThroughputCard" class="summary-card"></div>
+      <div id="dashBlockerCard" class="summary-card"></div>
+    </div>
+
     <div class="dash-metrics">
       <div id="dashStatusCard" class="summary-card"></div>
       <div id="dashCategoryCard" class="summary-card"></div>
@@ -55,6 +66,7 @@
       <div id="dashUrgentCard" class="summary-card"></div>
       <div id="dashDueCard" class="summary-card"></div>
       <div id="dashNextWeekCard" class="summary-card"></div>
+      <div id="dashOptionsCard" class="summary-card"></div>
     </div>
 
     <div class="weekly-report-trigger">
@@ -113,6 +125,18 @@
     <div class="modal-actions">
       <button id="btnAssigneeClose" class="btn btn-ghost">닫기</button>
       <button id="btnAssigneeSave" class="btn btn-primary">저장</button>
+    </div>
+  </div>
+</div>
+
+<div id="categoryModal" class="modal">
+  <div class="modal-box modal-box-wide">
+    <h2>분류 설정</h2>
+    <p class="modal-desc">대분류를 선택하면 오른쪽에서 해당 중분류를 편집할 수 있습니다. 저장을 눌러야 반영됩니다.</p>
+    <div id="categoryForm" class="category-form"></div>
+    <div class="modal-actions">
+      <button id="btnCategoryClose" class="btn btn-ghost">닫기</button>
+      <button id="btnCategorySave" class="btn btn-primary">저장</button>
     </div>
   </div>
 </div>

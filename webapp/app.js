@@ -144,6 +144,32 @@ async function saveSettings(month, settings) {
 
 function num(v) { const n = parseFloat(v); return isNaN(n) ? 0 : n; }
 
+// ---------------- 날짜 표기 (MM/DD 입력 ↔ ISO 저장) ----------------
+
+// 시트 연도: 월 탭은 연도를 갖지 않으므로 올해를 기준 연도로 사용합니다.
+function sheetYear() { return new Date().getFullYear(); }
+
+function isoToMMDD(iso) {
+  if (!iso) return "";
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!m) return iso;
+  return `${m[2]}/${m[3]}`;
+}
+
+// "9/4", "09/04", "0904", "9-4" 등을 YYYY-MM-DD 로 변환
+function mmddToIso(text, year) {
+  const raw = (text || "").trim();
+  if (!raw) return "";
+  let mm, dd;
+  let m = /^(\d{1,2})\s*[\/\-.]\s*(\d{1,2})$/.exec(raw);
+  if (m) { mm = +m[1]; dd = +m[2]; }
+  else if (/^\d{4}$/.test(raw)) { mm = +raw.slice(0, 2); dd = +raw.slice(2); }
+  else if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  else return "";
+  if (mm < 1 || mm > 12 || dd < 1 || dd > 31) return "";
+  return `${year}-${String(mm).padStart(2, "0")}-${String(dd).padStart(2, "0")}`;
+}
+
 function recomputeHours(task) {
   const total = num(task.hPlanner) + num(task.hDesigner) + num(task.hPublisher) + num(task.hGa) + num(task.hPm);
   task.hTotal = total;
@@ -169,6 +195,7 @@ async function init() {
       }
     });
   }
+  applyCategories(await loadCategories());
   state.currentMonth = state.months[state.months.length - 1];
   await switchMonth(state.currentMonth);
   renderMonthTabs();
@@ -276,6 +303,10 @@ function bindGlobalControls() {
   document.getElementById("btnSettings").onclick = openSettings;
   document.getElementById("searchInput").oninput = (e) => { state.searchText = e.target.value; renderSheet(); };
   document.getElementById("btnExport").onclick = exportCsv;
+  document.getElementById("btnImport").onclick = triggerCsvImport;
+  document.getElementById("csvFileInput").onchange = handleCsvFile;
+  document.getElementById("btnCsvTemplate").onclick = exportCsvTemplate;
+  document.getElementById("btnCategorySettings").onclick = openCategorySettings;
   document.getElementById("btnDashRefresh").onclick = renderDashboard;
   document.getElementById("brandHome").onclick = () => setView("dashboard");
   document.getElementById("btnWeeklyReport").onclick = generateWeeklyReport;
@@ -476,6 +507,20 @@ function renderCell(task, col) {
     inp.type = "date";
     inp.value = task[col.key] || "";
     inp.onchange = () => updateField(task.id, col.key, inp.value);
+    return inp;
+  }
+  if (col.type === "shortdate") {
+    const inp = document.createElement("input");
+    inp.type = "text";
+    inp.className = "shortdate-input";
+    inp.placeholder = "MM/DD";
+    inp.maxLength = 5;
+    inp.value = isoToMMDD(task[col.key]);
+    inp.title = task[col.key] || "";
+    inp.onchange = () => {
+      const iso = mmddToIso(inp.value, sheetYear());
+      updateField(task.id, col.key, iso);
+    };
     return inp;
   }
   if (col.type === "number") {
@@ -768,6 +813,166 @@ function renderDashboard() {
         ${t.priority ? pillHtml(t.priority, priorityTone(t.priority)) : ""}
         ${pillHtml(t.status || "-", statusTone(t.status))}
       </div>`).join("")}</div>` : `<p class="dash-empty">차주로 예정된 업무가 없습니다.</p>`);
+
+  renderCapacityCard(tasks);
+  renderThroughputCard(tasks);
+  renderBlockerCard(tasks);
+  renderOptionsCard(tasks);
+}
+
+// ---------- Capacity (인력 대비 처리 능력) ----------
+
+function capacityConfig() {
+  const headcount = state.settings.headcount || DEFAULT_HEADCOUNT;
+  const weekDays = state.settings.weekDays || DEFAULT_WEEK_DAYS;
+  return { headcount, weekDays };
+}
+
+function renderCapacityCard(tasks) {
+  const { headcount, weekDays } = capacityConfig();
+  const rows = ROLES.map(r => {
+    const heads = num(headcount[r]);
+    const capacity = heads * weekDays;                       // 주당 인일
+    const usedDays = sumHoursByRole(tasks)[r] / HOURS_PER_DAY; // 이번 달 누적 투입 인일
+    return { role: r, heads, capacity, usedDays };
+  });
+  const totalHeads = rows.reduce((a, x) => a + x.heads, 0);
+  const totalCapacity = rows.reduce((a, x) => a + x.capacity, 0);
+
+  const staffingLine = ROLES.filter(r => num(headcount[r]) > 0)
+    .map(r => `${r} ${num(headcount[r])}`).join(" / ");
+
+  document.getElementById("dashCapacityCard").innerHTML = `
+    <h3>투입 인력 대비 처리 능력(Capacity)</h3>
+    <p class="card-lead">현재 <strong>${totalHeads}명</strong>(${escapeHtml(staffingLine)})의 전담 인력으로
+      주당 <strong>${totalCapacity}인일</strong>의 처리 능력을 확보하고 있으며,
+      기획 → 디자인 → 퍼블리싱 연계 순서에 따라 우선순위 기준으로 순차 진행하고 있습니다.</p>
+    <table class="summary-table">
+      <thead><tr><th>구분</th><th>인원</th><th>주당 Capacity</th><th>월 누적 투입</th></tr></thead>
+      <tbody>
+        ${rows.map(x => `<tr>
+          <td>${x.role}</td>
+          <td>${x.heads}명</td>
+          <td>${x.capacity}인일 (${x.heads}×${weekDays}일)</td>
+          <td>${x.usedDays.toFixed(1)}인일</td>
+        </tr>`).join("")}
+        <tr class="total-row">
+          <td>계</td><td>${totalHeads}명</td><td>${totalCapacity}인일/주</td>
+          <td>${rows.reduce((a, x) => a + x.usedDays, 0).toFixed(1)}인일</td>
+        </tr>
+      </tbody>
+    </table>`;
+}
+
+// ---------- 주간 처리량 / 다음 주 예상 ----------
+
+function weekRangeOf(offsetWeeks) {
+  const base = new Date(); base.setHours(0, 0, 0, 0);
+  const dow = base.getDay();
+  const monday = new Date(base);
+  monday.setDate(base.getDate() - ((dow + 6) % 7) + offsetWeeks * 7);
+  const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6);
+  return { start: toDateStr(monday), end: toDateStr(sunday) };
+}
+
+function inRange(d, r) { return d && d >= r.start && d <= r.end; }
+
+function renderThroughputCard(tasks) {
+  const thisWeek = weekRangeOf(0);
+  const active = tasks.filter(t => t.status !== "취소");
+
+  const requested = active.filter(t => inRange(t.receivedDate, thisWeek)).length;
+  const completed = active.filter(t => t.status === "완료" && inRange(t.doneDate, thisWeek)).length;
+  const working = active.filter(t => ["진행", "개발", "검수"].includes(t.status)).length;
+  const isNew = active.filter(t => inRange(t.receivedDate, thisWeek) && t.kind === "신규").length;
+  const isFix = active.filter(t => inRange(t.receivedDate, thisWeek) && t.kind === "수정").length;
+
+  // 최근 4주 완료 실적으로 다음 주 예상 처리량 산출
+  const weekly = [0, -1, -2, -3].map(off => {
+    const r = weekRangeOf(off);
+    return active.filter(t => t.status === "완료" && inRange(t.doneDate, r)).length;
+  });
+  const past = weekly.slice(1).filter(v => v > 0);
+  const avg = past.length ? past.reduce((a, b) => a + b, 0) / past.length : completed;
+  const lo = Math.max(0, Math.floor(avg * 0.85));
+  const hi = Math.ceil(avg * 1.15);
+
+  document.getElementById("dashThroughputCard").innerHTML = `
+    <h3>이번 주 처리량 (${thisWeek.start.slice(5).replace("-", "/")} ~ ${thisWeek.end.slice(5).replace("-", "/")})</h3>
+    <div class="throughput-grid">
+      <div class="throughput-item"><span class="tp-value">${requested}</span><span class="tp-label">요청 업무</span></div>
+      <div class="throughput-item"><span class="tp-value">${completed}</span><span class="tp-label">완료</span></div>
+      <div class="throughput-item"><span class="tp-value">${working}</span><span class="tp-label">진행 중</span></div>
+      <div class="throughput-item"><span class="tp-value">${isNew}</span><span class="tp-label">신규 요청</span></div>
+      <div class="throughput-item"><span class="tp-value">${isFix}</span><span class="tp-label">수정 반영</span></div>
+    </div>
+    <p class="card-lead">최근 4주 주 평균 처리량은 <strong>${avg.toFixed(1)}건</strong>이며,
+      다음 주 예상 처리 가능량은 <strong>약 ${lo}~${hi}건</strong>입니다.</p>`;
+}
+
+// ---------- 병목 구분 ----------
+
+function renderBlockerCard(tasks) {
+  const open = tasks.filter(t => !["완료", "취소"].includes(t.status));
+  const buckets = OPTIONS.병목.map(label => ({
+    label,
+    meta: BLOCKER_META[label],
+    items: open.filter(t => t.blocker === label)
+  }));
+  const unset = open.filter(t => !t.blocker);
+
+  const waitingCount = buckets.find(b => b.label === "고객 자료/의사결정 대기").items.length;
+  const riskCount = buckets.find(b => b.label === "일정 영향 가능").items.length;
+
+  document.getElementById("dashBlockerCard").innerHTML = `
+    <h3>진행 상태 / 병목 구분</h3>
+    <p class="card-lead">미완료 ${open.length}건 중 <strong>${waitingCount}건</strong>은 고객사 자료·의사결정 대기 상태이며,
+      <strong>${riskCount}건</strong>은 일정에 영향을 줄 수 있는 항목입니다.
+      내부 작업 지연과 외부 대기 요인을 구분해 관리하고 있습니다.</p>
+    <div class="blocker-grid">
+      ${buckets.map(b => `
+        <div class="blocker-box blocker-${b.meta.tone}">
+          <div class="blocker-head"><span>${b.meta.dot}</span><span>${b.label}</span></div>
+          <div class="blocker-count">${b.items.length}건</div>
+          <ul class="blocker-items">
+            ${b.items.slice(0, 4).map(t => `<li>${escapeHtml(t.title) || "(업무명 미입력)"}</li>`).join("")
+              || `<li class="blocker-none">해당 없음</li>`}
+            ${b.items.length > 4 ? `<li class="blocker-more">외 ${b.items.length - 4}건</li>` : ""}
+          </ul>
+        </div>`).join("")}
+    </div>
+    ${unset.length ? `<p class="dash-empty">※ 병목구분 미지정 ${unset.length}건 — 업무현황 탭의 '병목구분' 열에서 지정하면 위 분류에 반영됩니다.</p>` : ""}`;
+}
+
+// ---------- 선택지 제시 ----------
+
+function renderOptionsCard(tasks) {
+  const open = tasks.filter(t => !["완료", "취소"].includes(t.status)).length;
+  const { headcount, weekDays } = capacityConfig();
+  const totalHeads = ROLES.reduce((a, r) => a + num(headcount[r]), 0);
+
+  document.getElementById("dashOptionsCard").innerHTML = `
+    <h3>일정 운영 선택지</h3>
+    <p class="card-lead">현재 인력 기준으로 일정 내 최대한 완료할 수 있도록 우선순위와 투입량을 관리하고 있습니다.
+      잔여 <strong>${open}건</strong>의 처리 방식은 아래 세 가지 중에서 선택할 수 있습니다.</p>
+    <div class="option-grid">
+      <div class="option-box">
+        <div class="option-num">①</div>
+        <div class="option-title">현재 인력 유지</div>
+        <div class="option-desc">우선순위 기준 순차 완료. 후순위 업무의 완료 시점은 조정됩니다.</div>
+      </div>
+      <div class="option-box">
+        <div class="option-num">②</div>
+        <div class="option-title">일정 유지 + 전체 동시 진행</div>
+        <div class="option-desc">현재 ${totalHeads}명(주 ${totalHeads * weekDays}인일) 기준 Capacity를 초과하므로 추가 인력이 필요합니다.</div>
+      </div>
+      <div class="option-box">
+        <div class="option-num">③</div>
+        <div class="option-title">인력 유지 + 전체 완료</div>
+        <div class="option-desc">현재 처리 속도 기준으로 완료 일정 조정이 필요합니다.</div>
+      </div>
+    </div>
+    <p class="card-note">협조사항 : 원활한 일정 준수를 위해 자료 및 검토 의견은 우선순위에 따라 순차적으로 전달 부탁드립니다.</p>`;
 }
 
 // ---------------- Settings modal ----------------
@@ -777,10 +982,41 @@ function openSettings() {
   modal.style.display = "flex";
   const form = document.getElementById("settingsForm");
   form.innerHTML = "";
+
+  if (!state.settings.headcount) state.settings.headcount = { ...DEFAULT_HEADCOUNT };
+  if (!state.settings.weekDays) state.settings.weekDays = DEFAULT_WEEK_DAYS;
+
+  const sec1 = document.createElement("div");
+  sec1.innerHTML = `<h4 class="settings-section">투입 인력 (명)</h4>`;
+  form.appendChild(sec1);
   ROLES.forEach(r => {
     const row = document.createElement("div");
     row.className = "settings-row";
-    row.innerHTML = `<label>${r} 기준 MM</label>`;
+    row.innerHTML = `<label>${r}</label>`;
+    const inp = document.createElement("input");
+    inp.type = "number"; inp.step = "1"; inp.min = "0";
+    inp.value = state.settings.headcount[r] ?? DEFAULT_HEADCOUNT[r] ?? 0;
+    inp.oninput = () => { state.settings.headcount[r] = parseFloat(inp.value) || 0; };
+    row.appendChild(inp);
+    form.appendChild(row);
+  });
+
+  const wdRow = document.createElement("div");
+  wdRow.className = "settings-row";
+  wdRow.innerHTML = `<label>주 근무일</label>`;
+  const wdInp = document.createElement("input");
+  wdInp.type = "number"; wdInp.value = state.settings.weekDays || DEFAULT_WEEK_DAYS;
+  wdInp.oninput = () => { state.settings.weekDays = parseInt(wdInp.value) || DEFAULT_WEEK_DAYS; };
+  wdRow.appendChild(wdInp);
+  form.appendChild(wdRow);
+
+  const sec2 = document.createElement("div");
+  sec2.innerHTML = `<h4 class="settings-section">월 기준 MM</h4>`;
+  form.appendChild(sec2);
+  ROLES.forEach(r => {
+    const row = document.createElement("div");
+    row.className = "settings-row";
+    row.innerHTML = `<label>${r}</label>`;
     const inp = document.createElement("input");
     inp.type = "number"; inp.step = "0.1";
     inp.value = state.settings.targetMM[r] ?? DEFAULT_TARGET_MM[r] ?? 0;
@@ -788,14 +1024,15 @@ function openSettings() {
     row.appendChild(inp);
     form.appendChild(row);
   });
-  const wdRow = document.createElement("div");
-  wdRow.className = "settings-row";
-  wdRow.innerHTML = `<label>업무일수</label>`;
-  const wdInp = document.createElement("input");
-  wdInp.type = "number"; wdInp.value = state.settings.workDays || 20;
-  wdInp.oninput = () => { state.settings.workDays = parseInt(wdInp.value) || 20; };
-  wdRow.appendChild(wdInp);
-  form.appendChild(wdRow);
+
+  const mdRow = document.createElement("div");
+  mdRow.className = "settings-row";
+  mdRow.innerHTML = `<label>월 업무일수</label>`;
+  const mdInp = document.createElement("input");
+  mdInp.type = "number"; mdInp.value = state.settings.workDays || 20;
+  mdInp.oninput = () => { state.settings.workDays = parseInt(mdInp.value) || 20; };
+  mdRow.appendChild(mdInp);
+  form.appendChild(mdRow);
 
   document.getElementById("btnSettingsClose").onclick = () => { modal.style.display = "none"; };
   document.getElementById("btnSettingsSave").onclick = async () => {
@@ -870,21 +1107,299 @@ function renderAssigneeForm() {
   });
 }
 
-// ---------------- CSV export ----------------
+// ---------------- 분류 설정 모달 (대분류 / 중분류) ----------------
+
+let categoryDraft = null;
+let categoryActiveMajor = null;
+
+async function loadCategories() {
+  if (!API_BASE) {
+    const raw = localStorage.getItem("wm_categories_v1");
+    return raw ? JSON.parse(raw) : null;
+  }
+  try {
+    const data = await apiFetchJson("/api/categories");
+    return data.categories || null;
+  } catch (e) { return null; }
+}
+
+async function saveCategories(categories) {
+  if (!API_BASE) {
+    localStorage.setItem("wm_categories_v1", JSON.stringify(categories));
+    return;
+  }
+  await apiFetchJson("/api/categories", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ categories })
+  });
+}
+
+function applyCategories(categories) {
+  if (!categories) return;
+  if (Array.isArray(categories.majors)) {
+    MAJOR_CATEGORIES.splice(0, MAJOR_CATEGORIES.length, ...categories.majors);
+  }
+  if (categories.minors && typeof categories.minors === "object") {
+    Object.keys(MINOR_CATEGORY_MAP).forEach(k => { delete MINOR_CATEGORY_MAP[k]; });
+    Object.entries(categories.minors).forEach(([k, v]) => {
+      MINOR_CATEGORY_MAP[k] = Array.isArray(v) ? [...v] : [];
+    });
+  }
+}
+
+function openCategorySettings() {
+  categoryDraft = {
+    majors: [...MAJOR_CATEGORIES],
+    minors: JSON.parse(JSON.stringify(MINOR_CATEGORY_MAP))
+  };
+  categoryActiveMajor = categoryDraft.majors[0] || null;
+  document.getElementById("categoryModal").style.display = "flex";
+  renderCategoryForm();
+
+  document.getElementById("btnCategoryClose").onclick = () => {
+    document.getElementById("categoryModal").style.display = "none";
+    categoryDraft = null;
+  };
+  document.getElementById("btnCategorySave").onclick = async () => {
+    const majors = categoryDraft.majors.map(m => m.trim()).filter(Boolean);
+    const minors = {};
+    majors.forEach(m => {
+      minors[m] = (categoryDraft.minors[m] || []).map(v => v.trim()).filter(Boolean);
+    });
+    applyCategories({ majors, minors });
+    await saveCategories({ majors, minors });
+    document.getElementById("categoryModal").style.display = "none";
+    categoryDraft = null;
+    renderSheet();
+    renderSummary();
+    renderDashboard();
+  };
+}
+
+function renderCategoryForm() {
+  const el = document.getElementById("categoryForm");
+  const majors = categoryDraft.majors;
+  if (!majors.includes(categoryActiveMajor)) categoryActiveMajor = majors[0] || null;
+  const minors = categoryActiveMajor ? (categoryDraft.minors[categoryActiveMajor] || []) : [];
+
+  el.innerHTML = `
+    <div class="category-pane">
+      <h4>대분류</h4>
+      <div class="category-list">
+        ${majors.map((m, i) => `
+          <div class="category-row ${m === categoryActiveMajor ? "is-active" : ""}">
+            <button type="button" class="category-pick" data-idx="${i}" title="중분류 편집">${m === categoryActiveMajor ? "▸" : "　"}</button>
+            <input type="text" value="${escapeHtml(m)}" data-major-idx="${i}" />
+            <button type="button" class="assignee-del" data-major-del="${i}">✕</button>
+          </div>`).join("")}
+      </div>
+      <button type="button" class="btn btn-ghost btn-sm" id="btnAddMajor">+ 대분류 추가</button>
+    </div>
+    <div class="category-pane">
+      <h4>중분류 ${categoryActiveMajor ? `· <span class="category-active-name">${escapeHtml(categoryActiveMajor)}</span>` : ""}</h4>
+      ${categoryActiveMajor ? `
+        <div class="category-list">
+          ${minors.map((v, i) => `
+            <div class="category-row">
+              <input type="text" value="${escapeHtml(v)}" data-minor-idx="${i}" />
+              <button type="button" class="assignee-del" data-minor-del="${i}">✕</button>
+            </div>`).join("")}
+        </div>
+        <button type="button" class="btn btn-ghost btn-sm" id="btnAddMinor">+ 중분류 추가</button>
+      ` : `<p class="dash-empty">왼쪽에서 대분류를 선택하세요.</p>`}
+    </div>`;
+
+  el.querySelectorAll("[data-major-idx]").forEach(inp => {
+    inp.oninput = () => {
+      const i = +inp.dataset.majorIdx;
+      const oldName = categoryDraft.majors[i];
+      const newName = inp.value;
+      categoryDraft.majors[i] = newName;
+      if (oldName !== newName) {
+        categoryDraft.minors[newName] = categoryDraft.minors[oldName] || [];
+        delete categoryDraft.minors[oldName];
+        if (categoryActiveMajor === oldName) categoryActiveMajor = newName;
+      }
+    };
+  });
+  el.querySelectorAll(".category-pick").forEach(btn => {
+    btn.onclick = () => { categoryActiveMajor = categoryDraft.majors[+btn.dataset.idx]; renderCategoryForm(); };
+  });
+  el.querySelectorAll("[data-major-del]").forEach(btn => {
+    btn.onclick = () => {
+      const i = +btn.dataset.majorDel;
+      const name = categoryDraft.majors[i];
+      if (!confirm(`'${name}' 대분류와 하위 중분류를 모두 삭제할까요?`)) return;
+      categoryDraft.majors.splice(i, 1);
+      delete categoryDraft.minors[name];
+      renderCategoryForm();
+    };
+  });
+  el.querySelectorAll("[data-minor-idx]").forEach(inp => {
+    inp.oninput = () => { categoryDraft.minors[categoryActiveMajor][+inp.dataset.minorIdx] = inp.value; };
+  });
+  el.querySelectorAll("[data-minor-del]").forEach(btn => {
+    btn.onclick = () => {
+      categoryDraft.minors[categoryActiveMajor].splice(+btn.dataset.minorDel, 1);
+      renderCategoryForm();
+    };
+  });
+  const addMajor = el.querySelector("#btnAddMajor");
+  if (addMajor) addMajor.onclick = () => {
+    const name = `새 대분류${categoryDraft.majors.length + 1}`;
+    categoryDraft.majors.push(name);
+    categoryDraft.minors[name] = [];
+    categoryActiveMajor = name;
+    renderCategoryForm();
+  };
+  const addMinor = el.querySelector("#btnAddMinor");
+  if (addMinor) addMinor.onclick = () => {
+    categoryDraft.minors[categoryActiveMajor] = categoryDraft.minors[categoryActiveMajor] || [];
+    categoryDraft.minors[categoryActiveMajor].push("");
+    renderCategoryForm();
+  };
+}
+
+// ---------------- CSV 내보내기 / 가져오기 ----------------
+
+// 다운로드/업로드 공통 양식: 아래 열 순서·헤더 이름을 그대로 사용합니다.
+// (업무현황 시트에 보이는 열과 동일하며, 자동계산 열인 총합/MM은 참고용으로만 내보냅니다.)
+const CSV_COLUMNS = COLUMNS.filter(c => c.key !== "no");
+const CSV_READONLY_KEYS = ["hTotal", "mm"];
+const CSV_DATE_KEYS = COLUMNS.filter(c => c.type === "shortdate").map(c => c.key);
+
+function csvEscape(v) {
+  return `"${(v ?? "").toString().replace(/"/g, '""')}"`;
+}
 
 function exportCsv() {
-  const header = COLUMNS.map(c => c.label).join(",");
-  const lines = state.tasks.map(t => COLUMNS.map(c => {
-    const v = (t[c.key] ?? "").toString().replace(/"/g, '""');
-    return `"${v}"`;
-  }).join(","));
-  const csv = [header, ...lines].join("\n");
+  const header = ["NO", ...CSV_COLUMNS.map(c => c.label)].map(csvEscape).join(",");
+  const lines = state.tasks.map(t => {
+    const cells = CSV_COLUMNS.map(c => {
+      let v = t[c.key] ?? "";
+      if (CSV_DATE_KEYS.includes(c.key)) v = isoToMMDD(v); // 일정은 MM/DD 로 내보냄
+      return csvEscape(v);
+    });
+    return [csvEscape(t.no), ...cells].join(",");
+  });
+  const csv = [header, ...lines].join("\r\n");
   const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url; a.download = `업무현황_${state.currentMonth}.csv`;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+// 빈 양식(헤더만) 다운로드 — 처음 업로드용 틀로 사용
+function exportCsvTemplate() {
+  const header = ["NO", ...CSV_COLUMNS.map(c => c.label)].map(csvEscape).join(",");
+  const blob = new Blob(["\uFEFF" + header + "\r\n"], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = "업무현황_업로드양식.csv";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// 따옴표/줄바꿈을 포함한 CSV를 안전하게 파싱
+function parseCsv(text) {
+  const rows = [];
+  let row = [], field = "", inQuotes = false;
+  const s = text.replace(/^\uFEFF/, "");
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (s[i + 1] === '"') { field += '"'; i++; }
+        else inQuotes = false;
+      } else field += ch;
+    } else if (ch === '"') {
+      inQuotes = true;
+    } else if (ch === ",") {
+      row.push(field); field = "";
+    } else if (ch === "\n") {
+      row.push(field); field = "";
+      rows.push(row); row = [];
+    } else if (ch === "\r") {
+      // 무시 (\r\n 처리)
+    } else {
+      field += ch;
+    }
+  }
+  if (field.length || row.length) { row.push(field); rows.push(row); }
+  return rows.filter(r => r.some(c => (c || "").trim() !== ""));
+}
+
+function triggerCsvImport() {
+  document.getElementById("csvFileInput").click();
+}
+
+async function handleCsvFile(e) {
+  const file = e.target.files && e.target.files[0];
+  e.target.value = ""; // 같은 파일 재선택 허용
+  if (!file) return;
+
+  const text = await file.text();
+  const rows = parseCsv(text);
+  if (rows.length < 2) { alert("데이터 행이 없습니다. 헤더 아래에 업무를 입력한 뒤 다시 올려주세요."); return; }
+
+  const headers = rows[0].map(h => (h || "").trim());
+  // 헤더 이름 -> 컬럼 key 매핑 (양식 열이 일부 빠지거나 순서가 달라도 동작)
+  const labelToKey = {};
+  CSV_COLUMNS.forEach(c => { labelToKey[c.label] = c.key; });
+  const colIndex = {};
+  headers.forEach((h, i) => { if (labelToKey[h]) colIndex[labelToKey[h]] = i; });
+
+  const mappedCount = Object.keys(colIndex).length;
+  if (mappedCount === 0) {
+    alert("양식의 헤더를 인식하지 못했습니다.\n'CSV 내보내기'로 받은 파일의 첫 줄(헤더)을 그대로 유지한 채 올려주세요.");
+    return;
+  }
+
+  const mode = confirm(
+    `CSV에서 ${rows.length - 1}건을 읽었습니다.\n\n` +
+    `[확인] 기존 ${state.tasks.length}건을 모두 지우고 교체\n` +
+    `[취소] 기존 목록 뒤에 추가`
+  ) ? "replace" : "append";
+
+  const year = sheetYear();
+  const imported = [];
+  const skipped = [];
+  rows.slice(1).forEach((r, idx) => {
+    const t = emptyTask();
+    t.id = uid();
+    Object.entries(colIndex).forEach(([key, i]) => {
+      if (CSV_READONLY_KEYS.includes(key)) return; // 총합/MM은 다시 계산
+      let v = (r[i] ?? "").trim();
+      if (CSV_DATE_KEYS.includes(key)) v = mmddToIso(v, year);
+      t[key] = v;
+    });
+    if (!(t.title || "").trim() && !(t.ticket || "").trim()) { skipped.push(idx + 2); return; }
+    recomputeHours(t);
+    imported.push(t);
+  });
+
+  if (!imported.length) { alert("업로드할 유효한 행이 없습니다. (업무명 또는 티켓번호가 비어있는 행은 건너뜁니다)"); return; }
+
+  state.tasks = mode === "replace" ? imported : [...state.tasks, ...imported];
+  renumber();
+  await persistTasks(state.currentMonth, state.tasks);
+  if (API_BASE) await replaceTasksOnServer(state.currentMonth, state.tasks);
+
+  renderSheet();
+  renderDashboard();
+  alert(`${imported.length}건을 불러왔습니다.${skipped.length ? `\n(건너뛴 행: ${skipped.length}개)` : ""}`);
+}
+
+// Vercel 모드에서 월 전체 목록을 한 번에 저장
+async function replaceTasksOnServer(month, tasks) {
+  await apiFetchJson("/api/tasks", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ month, tasks })
+  });
 }
 
 // ---------------- 주간보고 작성 (주간보고_자동화_정책 기준) ----------------

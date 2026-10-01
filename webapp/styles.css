@@ -725,6 +725,161 @@ tbody input:focus, tbody select:focus, tbody textarea:focus {
   .dash-kpis { grid-template-columns: repeat(2, 1fr); }
 }
 
+/* ---------- Dashboard: capacity / throughput / blockers / options ---------- */
+
+.card-lead {
+  margin: 0 0 14px;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--ink-muted-80);
+}
+.card-lead strong { color: var(--ink); font-weight: 600; }
+.card-note {
+  margin: 14px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--divider-soft);
+  font-size: 12.5px;
+  color: var(--ink-muted-48);
+}
+
+.throughput-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.throughput-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 14px 8px;
+  background: var(--canvas-parchment);
+  border-radius: var(--r-md);
+}
+.tp-value {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.tp-label { font-size: 11.5px; color: var(--ink-muted-48); }
+
+.blocker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+.blocker-box {
+  border: 1px solid var(--hairline);
+  border-left-width: 3px;
+  border-radius: var(--r-md);
+  padding: 14px;
+}
+.blocker-ok { border-left-color: #2f9e62; }
+.blocker-waiting { border-left-color: #c9960c; }
+.blocker-internal { border-left-color: var(--primary); }
+.blocker-risk { border-left-color: #b5482d; }
+.blocker-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-muted-80);
+}
+.blocker-count {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 600;
+  margin: 6px 0 8px;
+}
+.blocker-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.blocker-items li {
+  font-size: 11.5px;
+  color: var(--ink-muted-48);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.blocker-none, .blocker-more { font-style: italic; }
+
+.option-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+.option-box {
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-md);
+  padding: 16px;
+}
+.option-num {
+  font-family: var(--font-display);
+  font-size: 18px;
+  color: var(--primary);
+  margin-bottom: 6px;
+}
+.option-title { font-size: 13.5px; font-weight: 600; margin-bottom: 6px; }
+.option-desc { font-size: 12px; line-height: 1.6; color: var(--ink-muted-48); }
+
+/* ---------- Category settings modal ---------- */
+
+.category-form { display: flex; gap: 20px; }
+.category-pane { flex: 1; min-width: 0; }
+.category-pane h4 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.category-active-name { color: var(--primary); }
+.category-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+.category-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.category-row.is-active input { border-color: var(--primary); }
+.category-row input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-sm);
+  padding: 6px 8px;
+  font-size: 12.5px;
+}
+.category-row input:focus { outline: none; border-color: var(--primary-focus); }
+.category-pick {
+  flex: none;
+  width: 18px;
+  border: none;
+  background: transparent;
+  color: var(--primary);
+  cursor: pointer;
+  font-size: 11px;
+}
+
+/* ---------- Short date input (MM/DD) ---------- */
+
+.shortdate-input {
+  font-family: var(--font-mono) !important;
+  text-align: center;
+}
+
 @media (max-width: 720px) {
   .summary-grid { grid-template-columns: 1fr; }
   #searchInput { width: 140px; }
@@ -733,4 +888,5 @@ tbody input:focus, tbody select:focus, tbody textarea:focus {
   .dash-kpis { grid-template-columns: 1fr; }
   .modal-box-wide { width: 92vw; }
   .assignee-form { flex-direction: column; }
+  .category-form { flex-direction: column; }
 }
