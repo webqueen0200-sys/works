@@ -401,8 +401,9 @@ function groupLabel(group) {
 
 // 진행현황에 따른 행 배경색 클래스
 function rowStatusClass(status) {
-  if (status === "진행") return "row-progress";
-  if (["완료", "보류", "취소"].includes(status)) return "row-closed";
+  if (status === "진행") return "row-progress";                // 하늘색
+  if (status === "완료") return "row-done";                    // 회색
+  if (["보류", "취소"].includes(status)) return "row-closed";  // 회색
   return "";
 }
 
@@ -977,11 +978,10 @@ function openSettings() {
 let assigneeDraft = null;
 
 function openAssigneeSettings() {
-  assigneeDraft = {
-    기획: [...ASSIGNEE_OPTIONS.기획],
-    디자인: [...ASSIGNEE_OPTIONS.디자인],
-    퍼블: [...ASSIGNEE_OPTIONS.퍼블]
-  };
+  assigneeDraft = {};
+  Object.keys(ASSIGNEE_OPTIONS).forEach(role => {
+    assigneeDraft[role] = [...ASSIGNEE_OPTIONS[role]];
+  });
   const modal = document.getElementById("assigneeModal");
   modal.style.display = "flex";
   renderAssigneeForm();
@@ -997,7 +997,7 @@ function openAssigneeSettings() {
     btn.textContent = "저장 중...";
     try {
       // 1) 이름이 바뀐 항목을 찾아, 이미 입력된 업무의 담당자 값도 함께 바꿔줍니다.
-      const roleToKey = { 기획: "planner", 디자인: "designer", 퍼블: "publisher" };
+      const roleToKey = { 기획: "planner", 디자인: "designer", 퍼블: "publisher", GA: "ga" };
       const renames = [];
       Object.keys(ASSIGNEE_OPTIONS).forEach(role => {
         const before = ASSIGNEE_OPTIONS[role];

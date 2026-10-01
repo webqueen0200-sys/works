@@ -4,7 +4,8 @@ const { getJSON, setJSON } = require("./_kv");
 const DEFAULT_ASSIGNEES = {
   기획: ["기획2", "기획3", "기획4"],
   디자인: ["디자인1", "디자인2", "디자인3"],
-  퍼블: ["퍼블1", "퍼블2", "퍼블3"]
+  퍼블: ["퍼블1", "퍼블2", "퍼블3"],
+  GA: ["GA1", "GA2"]
 };
 
 module.exports = withApi(async (req, res) => {

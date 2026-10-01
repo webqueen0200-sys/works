@@ -39,11 +39,12 @@ const EXCLUDED_STATUS = ["취소"];
 const ASSIGNEE_OPTIONS = {
   기획: ["기획2", "기획3", "기획4"],
   디자인: ["디자인1", "디자인2", "디자인3"],
-  퍼블: ["퍼블1", "퍼블2", "퍼블3"]
+  퍼블: ["퍼블1", "퍼블2", "퍼블3"],
+  GA: ["GA1", "GA2"]
 };
 
-// GA 담당 코드
-const GA_OPTIONS = ["GA1", "GA2"];
+// GA 담당 코드 — 담당자 설정에서 함께 관리하도록 같은 배열을 참조합니다.
+const GA_OPTIONS = ASSIGNEE_OPTIONS.GA;
 
 // 기준 MM (월 목표 투입공수) — 요약 탭 상단 "기준 MM" 표에 사용, 설정에서 조정 가능
 const DEFAULT_TARGET_MM = { 기획: 2, 디자인: 2, 퍼블: 3, GA: 1, PM: 1 };
