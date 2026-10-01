@@ -6,8 +6,36 @@
 <title>2026 업무관리</title>
 <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css" />
 <link rel="stylesheet" href="styles.css" />
+<style>
+  /* ---------- 상단 메뉴 (2026 업무관리 / 배포 관리 공통) ---------- */
+  .global-nav {
+    display: flex; align-items: center; gap: 4px; height: 40px; padding: 0 24px;
+    background: #000000; border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+    overflow-x: auto; scrollbar-width: none;
+  }
+  .global-nav::-webkit-scrollbar { display: none; }
+  .global-nav a {
+    position: relative; display: inline-flex; align-items: center; height: 100%; padding: 0 14px;
+    font-family: "Pretendard Variable", "SF Pro Text", system-ui, -apple-system, sans-serif;
+    font-size: 13px; font-weight: 400; letter-spacing: -0.12px; white-space: nowrap;
+    color: rgba(255, 255, 255, 0.64); text-decoration: none; transition: color .15s;
+  }
+  .global-nav a:hover { color: #ffffff; }
+  .global-nav a.active { color: #ffffff; font-weight: 600; }
+  .global-nav a.active::after {
+    content: ""; position: absolute; left: 14px; right: 14px; bottom: 0;
+    height: 2px; border-radius: 2px; background: #2997ff;
+  }
+  .global-nav a:focus-visible { outline: 2px solid #0071e3; outline-offset: -2px; }
+  @media (max-width: 640px) { .global-nav { padding: 0 8px; } }
+</style>
 </head>
 <body>
+
+<nav class="global-nav" aria-label="서비스 메뉴">
+  <a href="https://webqueen0200-sys.github.io/works/webapp/index.html" class="active" aria-current="page">2026 업무관리</a>
+  <a href="https://webqueen0200-sys.github.io/works/developlist.html">배포 관리</a>
+</nav>
 
 <header class="app-header">
   <div class="brand" id="brandHome" title="첫 화면(대시보드)으로 이동">
