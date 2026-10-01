@@ -97,6 +97,23 @@ button { font-family: var(--font-text); }
   gap: 8px;
 }
 
+.save-status {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 5px 10px;
+  border-radius: var(--r-pill);
+  white-space: nowrap;
+}
+.save-status:empty { display: none; }
+.save-saving { color: #ffd479; background: rgba(255, 212, 121, 0.14); }
+.save-ok { color: #7fd8a0; background: rgba(127, 216, 160, 0.14); }
+.save-error {
+  color: #ff8a73;
+  background: rgba(255, 138, 115, 0.16);
+  cursor: pointer;
+  font-weight: 600;
+}
+
 .btn-health {
   border: 1px solid #3b4a44;
   background: transparent;

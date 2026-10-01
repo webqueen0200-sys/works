@@ -96,40 +96,87 @@ async function loadTasks(month) {
     const raw = localStorage.getItem(localTasksKey(month));
     return raw ? JSON.parse(raw) : [];
   }
-  const data = await apiFetchJson(`/api/tasks?month=${encodeURIComponent(month)}`);
-  return data.tasks || [];
-}
-
-async function persistTasks(month, tasks) {
-  if (!API_BASE) {
-    localStorage.setItem(localTasksKey(month), JSON.stringify(tasks));
-    return;
+  try {
+    const data = await apiFetchJson(`/api/tasks?month=${encodeURIComponent(month)}`);
+    const tasks = data.tasks || [];
+    // 서버 응답을 로컬 캐시에 보관 (다음 접속 시 서버 장애 대비)
+    try { localStorage.setItem(localTasksKey(month), JSON.stringify(tasks)); } catch (e) {}
+    return tasks;
+  } catch (err) {
+    console.error("[불러오기 실패]", err);
+    const raw = localStorage.getItem(localTasksKey(month));
+    const cached = raw ? JSON.parse(raw) : [];
+    setSaveStatus("error", "불러오기 실패 (클릭)");
+    saveState.lastError = (err && err.message) || String(err);
+    if (cached.length) {
+      alert(
+        `서버에서 '${month}' 데이터를 불러오지 못해, 이 브라우저에 저장된 사본(${cached.length}건)을 표시합니다.\n\n` +
+        `이 상태에서 수정하면 서버 연결이 복구될 때 덮어쓰기 됩니다.\n\n오류: ${saveState.lastError}`
+      );
+    }
+    return cached;
   }
-  // Vercel 모드: 서버가 개별 CRUD를 담당하므로 여기서는 아무것도 하지 않음
 }
 
-async function apiCreateTask(month, task) {
-  if (!API_BASE) return task;
-  return apiFetchJson("/api/tasks", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ month, task })
-  });
+// 저장 상태 표시 (헤더 우측)
+const saveState = { timer: null, inFlight: false, pending: null, lastError: null };
+
+function setSaveStatus(kind, text) {
+  const el = document.getElementById("saveStatus");
+  if (!el) return;
+  el.className = "save-status save-" + kind;
+  el.textContent = text;
+  el.title = kind === "error" && saveState.lastError ? saveState.lastError : "";
 }
 
-async function apiUpdateTask(month, id, patch) {
+// 모든 변경은 "해당 월 목록 전체 저장"으로 통일합니다.
+// (개별 행 CRUD는 서버에 없는 행을 수정할 때 404로 조용히 실패하는 문제가 있었습니다)
+async function persistTasks(month, tasks) {
+  // 1) 항상 로컬에 먼저 저장 — 서버 저장이 실패해도 입력 내용이 사라지지 않도록
+  try {
+    localStorage.setItem(localTasksKey(month), JSON.stringify(tasks));
+  } catch (e) { /* 용량 초과 등 무시 */ }
+
   if (!API_BASE) return;
-  await apiFetchJson(`/api/tasks/${encodeURIComponent(id)}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ month, patch })
-  });
+
+  // 2) 서버 저장은 디바운스해서 한 번에 (연속 입력 시 과도한 요청 방지)
+  saveState.pending = { month, tasks: JSON.parse(JSON.stringify(tasks)) };
+  setSaveStatus("saving", "저장 중...");
+  if (saveState.timer) clearTimeout(saveState.timer);
+  saveState.timer = setTimeout(flushSave, 600);
 }
 
-async function apiDeleteTask(month, id) {
-  if (!API_BASE) return;
-  await apiFetchJson(`/api/tasks/${encodeURIComponent(id)}?month=${encodeURIComponent(month)}`, { method: "DELETE" });
+async function flushSave() {
+  if (saveState.inFlight || !saveState.pending) return;
+  const job = saveState.pending;
+  saveState.pending = null;
+  saveState.inFlight = true;
+  try {
+    await apiFetchJson("/api/tasks", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ month: job.month, tasks: job.tasks })
+    });
+    saveState.lastError = null;
+    const t = new Date();
+    setSaveStatus("ok", `저장됨 ${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")}`);
+  } catch (err) {
+    saveState.lastError = (err && err.message) || String(err);
+    console.error("[저장 실패]", err);
+    setSaveStatus("error", "저장 실패 (클릭)");
+  } finally {
+    saveState.inFlight = false;
+    if (saveState.pending) flushSave(); // 저장 중 들어온 변경 처리
+  }
 }
+
+// 저장이 끝나기 전에 창을 닫으려 하면 경고
+window.addEventListener("beforeunload", (e) => {
+  if (saveState.pending || saveState.inFlight) {
+    e.preventDefault();
+    e.returnValue = "";
+  }
+});
 
 async function loadSettings(month) {
   if (!API_BASE) {
@@ -320,6 +367,13 @@ function bindGlobalControls() {
   document.getElementById("btnCsvTemplate").onclick = exportCsvTemplate;
   document.getElementById("btnCategorySettings").onclick = openCategorySettings;
   document.getElementById("btnHealth").onclick = checkConnection;
+  const saveEl = document.getElementById("saveStatus");
+  if (saveEl) saveEl.onclick = () => {
+    if (!saveState.lastError) return;
+    if (confirm(`마지막 저장/불러오기 오류:\n\n${saveState.lastError}\n\n다시 저장을 시도할까요?`)) {
+      persistTasks(state.currentMonth, state.tasks);
+    }
+  };
   document.getElementById("btnDashRefresh").onclick = renderDashboard;
   document.getElementById("brandHome").onclick = () => setView("dashboard");
   document.getElementById("btnWeeklyReport").onclick = generateWeeklyReport;
@@ -355,7 +409,6 @@ async function addRow() {
   state.tasks.push(t);
   renumber();
   await persistTasks(state.currentMonth, state.tasks);
-  await apiCreateTask(state.currentMonth, t);
   renderSheet();
   renderDashboard();
 }
@@ -371,7 +424,6 @@ async function toggleDone(id) {
     if (!t.doneDate) t.doneDate = todayStr();
   }
   await persistTasks(state.currentMonth, state.tasks);
-  await apiUpdateTask(state.currentMonth, id, t);
   renderSheet();
   renderDashboard();
 }
@@ -381,7 +433,6 @@ async function deleteRow(id) {
   state.tasks = state.tasks.filter(t => t.id !== id);
   renumber();
   await persistTasks(state.currentMonth, state.tasks);
-  await apiDeleteTask(state.currentMonth, id);
   renderSheet();
   renderDashboard();
 }
@@ -398,7 +449,6 @@ async function updateField(id, key, value) {
     recomputeHours(t);
   }
   await persistTasks(state.currentMonth, state.tasks);
-  await apiUpdateTask(state.currentMonth, id, t);
   // 대분류 변경(중분류 옵션 갱신) · 시간 입력(총합/MM 갱신) 등은 화면을 다시 그려야 반영됩니다.
   renderSheet();
   renderDashboard();
@@ -1054,7 +1104,6 @@ function openAssigneeSettings() {
         });
         if (changed) {
           await persistTasks(state.currentMonth, state.tasks);
-          if (API_BASE) await replaceTasksOnServer(state.currentMonth, state.tasks);
         }
       }
 
@@ -1416,20 +1465,10 @@ async function handleCsvFile(e) {
   state.tasks = mode === "replace" ? imported : [...state.tasks, ...imported];
   renumber();
   await persistTasks(state.currentMonth, state.tasks);
-  if (API_BASE) await replaceTasksOnServer(state.currentMonth, state.tasks);
 
   renderSheet();
   renderDashboard();
   alert(`${imported.length}건을 불러왔습니다.${skipped.length ? `\n(건너뛴 행: ${skipped.length}개)` : ""}`);
-}
-
-// Vercel 모드에서 월 전체 목록을 한 번에 저장
-async function replaceTasksOnServer(month, tasks) {
-  await apiFetchJson("/api/tasks", {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ month, tasks })
-  });
 }
 
 // ---------------- 연결 확인 (진단) ----------------
