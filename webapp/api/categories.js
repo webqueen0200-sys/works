@@ -1,4 +1,4 @@
-const { applyCors } = require("./_cors");
+const { withApi } = require("./_cors");
 const { getJSON, setJSON } = require("./_kv");
 
 const DEFAULT_CATEGORIES = {
@@ -12,9 +12,7 @@ const DEFAULT_CATEGORIES = {
   }
 };
 
-module.exports = async (req, res) => {
-  if (applyCors(req, res)) return;
-
+module.exports = withApi(async (req, res) => {
   if (req.method === "GET") {
     const categories = await getJSON("categories", DEFAULT_CATEGORIES);
     return res.status(200).json({ categories });
@@ -30,4 +28,4 @@ module.exports = async (req, res) => {
   }
 
   return res.status(405).json({ error: "지원하지 않는 메서드입니다." });
-};
+});

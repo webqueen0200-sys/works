@@ -1,11 +1,9 @@
-const { applyCors } = require("./_cors");
+const { withApi } = require("./_cors");
 const { getJSON, setJSON } = require("./_kv");
 
 const DEFAULT_SETTINGS = { targetMM: { 기획: 2, 디자인: 2, 퍼블: 3, GA: 1, PM: 1 }, workDays: 20 };
 
-module.exports = async (req, res) => {
-  if (applyCors(req, res)) return;
-
+module.exports = withApi(async (req, res) => {
   if (req.method === "GET") {
     const month = req.query.month;
     if (!month) return res.status(400).json({ error: "month 쿼리 파라미터가 필요합니다." });
@@ -21,4 +19,4 @@ module.exports = async (req, res) => {
   }
 
   return res.status(405).json({ error: "지원하지 않는 메서드입니다." });
-};
+});

@@ -1,4 +1,4 @@
-const { applyCors } = require("./_cors");
+const { withApi } = require("./_cors");
 const { getJSON, setJSON } = require("./_kv");
 
 const DEFAULT_ASSIGNEES = {
@@ -7,9 +7,7 @@ const DEFAULT_ASSIGNEES = {
   퍼블: ["퍼블1", "퍼블2", "퍼블3"]
 };
 
-module.exports = async (req, res) => {
-  if (applyCors(req, res)) return;
-
+module.exports = withApi(async (req, res) => {
   if (req.method === "GET") {
     const assignees = await getJSON("assignees", DEFAULT_ASSIGNEES);
     return res.status(200).json({ assignees });
@@ -23,4 +21,4 @@ module.exports = async (req, res) => {
   }
 
   return res.status(405).json({ error: "지원하지 않는 메서드입니다." });
-};
+});
