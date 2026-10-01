@@ -775,6 +775,12 @@ tbody input:focus, tbody select:focus, tbody textarea:focus {
   text-align: center;
 }
 
+/* 드롭다운 목록에서 사라진 값이 남아있는 셀 표시 */
+tbody select.value-missing {
+  color: #b5482d;
+  border-color: rgba(181, 72, 45, 0.4);
+}
+
 @media (max-width: 720px) {
   .summary-grid { grid-template-columns: 1fr; }
   #searchInput { width: 140px; }

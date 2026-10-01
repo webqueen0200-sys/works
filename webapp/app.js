@@ -25,7 +25,16 @@ function uid() {
 
 async function apiFetchJson(path, options) {
   const res = await fetch(API_BASE + path, options);
-  if (!res.ok) throw new Error("API 오류: " + res.status);
+  if (!res.ok) {
+    let detail = "";
+    try {
+      const body = await res.json();
+      detail = body && body.error ? ` - ${body.error}` : "";
+    } catch (e) {
+      if (res.status === 404) detail = " - 해당 API 파일이 배포되지 않았습니다";
+    }
+    throw new Error(`${res.status} ${res.statusText}${detail} (${path})`);
+  }
   return res.json();
 }
 
@@ -63,15 +72,16 @@ async function loadAssignees() {
     const data = await apiFetchJson("/api/assignees");
     return data.assignees || null;
   } catch (e) {
-    return null;
+    // API가 아직 배포되지 않았거나 실패한 경우 로컬에 저장된 값으로 대체
+    const raw = localStorage.getItem(LOCAL_ASSIGNEES_KEY);
+    return raw ? JSON.parse(raw) : null;
   }
 }
 
 async function saveAssignees(assignees) {
-  if (!API_BASE) {
-    localStorage.setItem(LOCAL_ASSIGNEES_KEY, JSON.stringify(assignees));
-    return;
-  }
+  // 로컬에는 항상 먼저 저장해 둡니다. (API 실패 시에도 설정이 남도록)
+  try { localStorage.setItem(LOCAL_ASSIGNEES_KEY, JSON.stringify(assignees)); } catch (e) { /* 용량 초과 등 무시 */ }
+  if (!API_BASE) return;
   await apiFetchJson("/api/assignees", {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
@@ -481,7 +491,13 @@ function renderCell(task, col) {
     const sel = document.createElement("select");
     sel.appendChild(new Option("", ""));
     col.options.forEach(o => sel.appendChild(new Option(o, o, false, task[col.key] === o)));
-    sel.value = task[col.key] || "";
+    // 목록에서 사라진 값(담당자 삭제·분류 변경 등)도 데이터가 지워지지 않도록 그대로 표시
+    const cur = task[col.key];
+    if (cur && !col.options.includes(cur)) {
+      sel.appendChild(new Option(`${cur} (목록에 없음)`, cur, false, true));
+      sel.classList.add("value-missing");
+    }
+    sel.value = cur || "";
     sel.onchange = () => updateField(task.id, col.key, sel.value);
     return sel;
   }
@@ -490,8 +506,13 @@ function renderCell(task, col) {
     const opts = col.map[task[col.dependsOn]] || [];
     sel.appendChild(new Option("", ""));
     opts.forEach(o => sel.appendChild(new Option(o, o, false, task[col.key] === o)));
-    sel.value = task[col.key] || "";
-    sel.disabled = opts.length === 0;
+    const cur = task[col.key];
+    if (cur && !opts.includes(cur)) {
+      sel.appendChild(new Option(`${cur} (목록에 없음)`, cur, false, true));
+      sel.classList.add("value-missing");
+    }
+    sel.value = cur || "";
+    sel.disabled = opts.length === 0 && !cur;
     sel.onchange = () => updateField(task.id, col.key, sel.value);
     return sel;
   }
@@ -870,14 +891,64 @@ function openAssigneeSettings() {
     assigneeDraft = null;
   };
   document.getElementById("btnAssigneeSave").onclick = async () => {
-    Object.keys(ASSIGNEE_OPTIONS).forEach(role => {
-      const cleaned = assigneeDraft[role].map(v => v.trim()).filter(Boolean);
-      ASSIGNEE_OPTIONS[role].splice(0, ASSIGNEE_OPTIONS[role].length, ...cleaned);
-    });
-    await saveAssignees(ASSIGNEE_OPTIONS);
-    modal.style.display = "none";
-    assigneeDraft = null;
-    renderSheet(); // 담당자 드롭다운 옵션 갱신
+    const btn = document.getElementById("btnAssigneeSave");
+    btn.disabled = true;
+    const label = btn.textContent;
+    btn.textContent = "저장 중...";
+    try {
+      // 1) 이름이 바뀐 항목을 찾아, 이미 입력된 업무의 담당자 값도 함께 바꿔줍니다.
+      const roleToKey = { 기획: "planner", 디자인: "designer", 퍼블: "publisher" };
+      const renames = [];
+      Object.keys(ASSIGNEE_OPTIONS).forEach(role => {
+        const before = ASSIGNEE_OPTIONS[role];
+        const after = assigneeDraft[role];
+        before.forEach((oldName, i) => {
+          const newName = (after[i] || "").trim();
+          if (newName && oldName !== newName) renames.push({ key: roleToKey[role], oldName, newName });
+        });
+      });
+
+      // 2) 드롭다운 옵션 반영 (COLUMNS가 같은 배열을 참조하므로 제자리 교체)
+      Object.keys(ASSIGNEE_OPTIONS).forEach(role => {
+        const cleaned = assigneeDraft[role].map(v => v.trim()).filter(Boolean);
+        ASSIGNEE_OPTIONS[role].splice(0, ASSIGNEE_OPTIONS[role].length, ...cleaned);
+      });
+
+      // 3) 기존 업무의 담당자 값 치환 후 저장
+      if (renames.length) {
+        let changed = false;
+        state.tasks.forEach(t => {
+          renames.forEach(({ key, oldName, newName }) => {
+            if (t[key] === oldName) { t[key] = newName; changed = true; }
+          });
+        });
+        if (changed) {
+          await persistTasks(state.currentMonth, state.tasks);
+          if (API_BASE) await replaceTasksOnServer(state.currentMonth, state.tasks);
+        }
+      }
+
+      await saveAssignees(ASSIGNEE_OPTIONS);
+
+      modal.style.display = "none";
+      assigneeDraft = null;
+      renderSheet();   // 담당자 드롭다운 옵션 갱신
+      renderDashboard();
+    } catch (err) {
+      console.error("담당자 설정 저장 실패:", err);
+      alert(
+        "담당자 설정을 서버에 저장하지 못했습니다.\n" +
+        "이 브라우저에는 저장되었으니 화면에는 반영됩니다.\n\n" +
+        "Vercel에 연결해 쓰시는 경우 api/assignees.js 파일을 올린 뒤 다시 배포(Redeploy)했는지 확인해주세요.\n\n" +
+        `오류: ${err && err.message ? err.message : err}`
+      );
+      modal.style.display = "none";
+      assigneeDraft = null;
+      renderSheet();
+    } finally {
+      btn.disabled = false;
+      btn.textContent = label;
+    }
   };
 }
 
@@ -928,14 +999,15 @@ async function loadCategories() {
   try {
     const data = await apiFetchJson("/api/categories");
     return data.categories || null;
-  } catch (e) { return null; }
+  } catch (e) {
+    const raw = localStorage.getItem("wm_categories_v1");
+    return raw ? JSON.parse(raw) : null;
+  }
 }
 
 async function saveCategories(categories) {
-  if (!API_BASE) {
-    localStorage.setItem("wm_categories_v1", JSON.stringify(categories));
-    return;
-  }
+  try { localStorage.setItem("wm_categories_v1", JSON.stringify(categories)); } catch (e) { /* 무시 */ }
+  if (!API_BASE) return;
   await apiFetchJson("/api/categories", {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
@@ -970,18 +1042,38 @@ function openCategorySettings() {
     categoryDraft = null;
   };
   document.getElementById("btnCategorySave").onclick = async () => {
-    const majors = categoryDraft.majors.map(m => m.trim()).filter(Boolean);
-    const minors = {};
-    majors.forEach(m => {
-      minors[m] = (categoryDraft.minors[m] || []).map(v => v.trim()).filter(Boolean);
-    });
-    applyCategories({ majors, minors });
-    await saveCategories({ majors, minors });
-    document.getElementById("categoryModal").style.display = "none";
-    categoryDraft = null;
-    renderSheet();
-    renderSummary();
-    renderDashboard();
+    const btn = document.getElementById("btnCategorySave");
+    btn.disabled = true;
+    const label = btn.textContent;
+    btn.textContent = "저장 중...";
+    try {
+      const majors = categoryDraft.majors.map(m => m.trim()).filter(Boolean);
+      const minors = {};
+      majors.forEach(m => {
+        minors[m] = (categoryDraft.minors[m] || []).map(v => v.trim()).filter(Boolean);
+      });
+      applyCategories({ majors, minors });
+      await saveCategories({ majors, minors });
+      document.getElementById("categoryModal").style.display = "none";
+      categoryDraft = null;
+      renderSheet();
+      renderSummary();
+      renderDashboard();
+    } catch (err) {
+      console.error("분류 설정 저장 실패:", err);
+      alert(
+        "분류 설정을 서버에 저장하지 못했습니다.\n" +
+        "이 브라우저에는 저장되었으니 화면에는 반영됩니다.\n\n" +
+        "Vercel에 연결해 쓰시는 경우 api/categories.js 파일을 올린 뒤 다시 배포(Redeploy)했는지 확인해주세요.\n\n" +
+        `오류: ${err && err.message ? err.message : err}`
+      );
+      document.getElementById("categoryModal").style.display = "none";
+      categoryDraft = null;
+      renderSheet();
+    } finally {
+      btn.disabled = false;
+      btn.textContent = label;
+    }
   };
 }
 
