@@ -129,11 +129,14 @@
   }
   .date-range.active { border-color: var(--primary); background: rgba(0, 102, 204, 0.04); }
   .date-range-label { font-size: 12px; font-weight: 600; color: var(--ink-muted-80); white-space: nowrap; }
-  .date-range input {
-    border: none; background: transparent; font-family: var(--font-text); font-size: 13px;
-    color: var(--ink); padding: 4px 2px; width: 124px; cursor: pointer;
+  .date-range input.df {
+    border: none; background: transparent; font-family: var(--font-mono); font-size: 13px;
+    color: var(--ink); padding: 4px 2px; width: 92px;
   }
-  .date-range input:focus { outline: none; color: var(--primary); }
+  .date-range input.df::placeholder { color: #c7c7cc; }
+  .date-range input.df:focus { outline: none; color: var(--primary); }
+  .date-range input.df.invalid { color: var(--danger); }
+  .df-wrap { position: relative; display: inline-flex; align-items: center; }
   .date-range .tilde { color: var(--ink-muted-48); }
   .date-clear {
     border: none; background: var(--surface-chip); color: var(--ink); font-size: 11px;
@@ -234,6 +237,24 @@
   tbody .ed.saved { border-color: rgba(36, 138, 61, 0.5); }
   tbody .ed.failed { border-color: var(--danger); }
 
+  /* 날짜·시간 입력 (숫자 입력 + 달력 버튼) */
+  .date-cell { position: relative; display: flex; align-items: center; gap: 0; }
+  .date-cell input.ed { font-family: var(--font-mono); flex: 0 0 auto; }
+  input.ed.mono { font-family: var(--font-mono); }
+  .cal-btn {
+    flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+    width: 22px; height: 22px; margin-left: 1px; padding: 0; border: none; border-radius: var(--r-pill);
+    background: transparent; color: var(--ink-muted-48); cursor: pointer;
+  }
+  .cal-btn:hover { background: rgba(0, 102, 204, 0.1); color: var(--primary); }
+  .cal-btn:active { transform: scale(0.95); }
+  .cal-btn svg { width: 13px; height: 13px; display: block; }
+  /* 달력 팝업용 네이티브 입력 — 화면에는 보이지 않음 */
+  .cal-native {
+    position: absolute; right: 0; bottom: 0; width: 1px; height: 1px;
+    opacity: 0; border: 0; padding: 0; pointer-events: none;
+  }
+
   /* 자동 번호 */
   .auto-no {
     display: block; min-width: 44px; padding: 6px 5px; text-align: center;
@@ -280,7 +301,8 @@
     .toolbar { padding: 12px 16px; }
     #searchInput { width: 100%; }
     .date-range { width: 100%; }
-    .date-range input { flex: 1; width: auto; }
+    .df-wrap { flex: 1; }
+    .date-range input.df { flex: 1; width: auto; }
     main { padding: 16px 16px 40px; }
   }
 </style>
@@ -306,9 +328,9 @@
   <div class="toolbar-right">
     <div class="date-range" id="dateRange">
       <span class="date-range-label">배포일</span>
-      <input id="dateFrom" type="date" aria-label="배포일 시작" />
+      <span class="df-wrap"><input id="dateFrom" class="df" data-kind="date" type="text" inputmode="numeric" maxlength="10" placeholder="YYYY-MM-DD" aria-label="배포일 시작" /><button type="button" class="cal-btn" tabindex="-1" title="달력에서 선택" aria-label="달력에서 선택"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="12" height="11" rx="2"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"/></svg></button><input type="date" class="cal-native" tabindex="-1" aria-hidden="true" /></span>
       <span class="tilde">~</span>
-      <input id="dateTo" type="date" aria-label="배포일 끝" />
+      <span class="df-wrap"><input id="dateTo" class="df" data-kind="date" type="text" inputmode="numeric" maxlength="10" placeholder="YYYY-MM-DD" aria-label="배포일 끝" /><button type="button" class="cal-btn" tabindex="-1" title="달력에서 선택" aria-label="달력에서 선택"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="12" height="11" rx="2"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"/></svg></button><input type="date" class="cal-native" tabindex="-1" aria-hidden="true" /></span>
       <button id="dateClear" class="date-clear" title="기간 초기화" aria-label="기간 초기화">✕</button>
     </div>
     <input id="searchInput" type="search" placeholder="업무명 · 요청자 · 티켓번호 검색" />
@@ -360,11 +382,14 @@
     return body || {};
   }
 
+  /* 구성원 목록 — 기획 / 퍼블리싱 / 검수자 드롭다운에 사용 */
+  const MEMBERS = ["", "김은영", "송승현", "전*현", "전*혜", "김*윤", "최*", "이*희"];
+
   /* 컬럼 정의 — 시트4 순서와 동일. rms_no 컬럼은 화면에서 "티켓번호"로 표시 */
   const COLUMNS = [
     { key: "no",             label: "NO",           type: "auto",     w: 44 },  // 자동 번호(입력 불가)
-    { key: "deploy_date",    label: "배포일",        type: "date",     w: 128 },
-    { key: "deploy_time",    label: "시간",          type: "time",     w: 100 },
+    { key: "deploy_date",    label: "배포일",        type: "date",     w: 96 },   // YYYY-MM-DD 입력 + 달력
+    { key: "deploy_time",    label: "시간",          type: "time",     w: 60 },   // hh:mm 숫자 입력
     { key: "deploy_type",    label: "배포유형",      type: "select",   w: 82, options: ["", "정기", "비정기"] },
     { key: "category",       label: "분류",          type: "select",   w: 96, options: ["", "기업", "소상공인"] },
     { key: "work_type",      label: "구분",          type: "select",   w: 96, options: ["", "배포", "BO반영", "배포/BO"] },
@@ -373,14 +398,14 @@
     { key: "task_name",      label: "업무명",        type: "textarea", w: 300, placeholder: "업무명 입력" },
     { key: "file_list",      label: "파일목록",      type: "textarea", w: 240 },
     { key: "requester",      label: "요청자",        type: "text",     w: 80 },
-    { key: "planner",        label: "기획",          type: "text",     w: 80 },
-    { key: "publisher",      label: "퍼블리싱",      type: "text",     w: 80 },
+    { key: "planner",        label: "기획",          type: "select",   w: 88, options: MEMBERS },
+    { key: "publisher",      label: "퍼블리싱",      type: "select",   w: 88, options: MEMBERS },
     { key: "developer",      label: "개발담당자",    type: "text",     w: 84 },
     { key: "impact",         label: "타서비스 영향도", type: "textarea", w: 240 },
-    { key: "stg_review_at",  label: "검수일시",      type: "datetime", w: 176 },
-    { key: "stg_reviewer",   label: "검수자",        type: "text",     w: 80 },
-    { key: "prod_review_at", label: "검수일시",      type: "datetime", w: 176 },
-    { key: "prod_reviewer",  label: "검수자",        type: "text",     w: 80 },
+    { key: "stg_review_at",  label: "검수일시",      type: "datetime", w: 136 },  // YYYY-MM-DD hh:mm 입력 + 달력
+    { key: "stg_reviewer",   label: "검수자",        type: "select",   w: 88, options: MEMBERS },
+    { key: "prod_review_at", label: "검수일시",      type: "datetime", w: 136 },
+    { key: "prod_reviewer",  label: "검수자",        type: "select",   w: 88, options: MEMBERS },
     { key: "confirm_up",     label: "완료 확인(U+)", type: "text",     w: 96 },
   ];
   /* 그룹 헤더 (선택 칸 포함 개수) */
@@ -503,22 +528,112 @@
 
   /* ---------- 값 변환 ---------- */
   const pad = (n) => String(n).padStart(2, "0");
+  /* 화면 표시값: 날짜 YYYY-MM-DD / 시간 hh:mm / 일시 YYYY-MM-DD hh:mm */
   function toInputValue(col, v) {
-    if (v === null || v === undefined) return "";
-    if (col.type === "time") return String(v).slice(0, 5);
+    if (v === null || v === undefined || v === "") return "";
+    if (col.type === "time") return normalizeTime(String(v)) || String(v).slice(0, 5);
+    if (col.type === "date") return String(v).slice(0, 10);
     if (col.type === "datetime") {
       const d = new Date(v);
       if (isNaN(d)) return "";
-      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
     }
     return String(v);
   }
+  /* 저장값 (화면 값은 normalizeField로 먼저 정리된 상태) */
   function toDbValue(col, raw) {
     let v = (raw || "").trim();
     if (col.type === "ticket") v = v.replace(/^#/, "");
     if (v === "") return null;
-    if (col.type === "datetime") return new Date(v).toISOString();
+    if (col.type === "datetime") return new Date(v.replace(" ", "T")).toISOString();
     return v;
+  }
+
+  /* ---------- 날짜·시간 해석 (직접 입력·붙여넣기 공통) ----------
+     날짜: 2026-10-01, 2026.10.1, 2026/10/01, 20261001, 26/10/01, 10/1(올해), 2026년 10월 1일
+     시간: 15:00, 1500, 930(→09:30), 9(→09:00), 15시 30분
+     일시: 날짜 + 공백/T/쉼표 + 시간 (시간 생략 시 00:00), 예) 10/1, 10:00 */
+  function validYMD(y, m, d) {
+    const dt = new Date(y, m - 1, d);
+    return dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d;
+  }
+  function normalizeDate(raw) {
+    const s = String(raw || "").trim().replace(/\s+/g, " ");
+    if (!s) return "";
+    let y, m, d, r;
+    if ((r = s.match(/^(\d{4})(\d{2})(\d{2})$/))) [, y, m, d] = r;
+    else if ((r = s.match(/^(\d{4})\s*[-./년]\s*(\d{1,2})\s*[-./월]\s*(\d{1,2})\s*[.일]?$/))) [, y, m, d] = r;
+    else if ((r = s.match(/^(\d{2})[-./](\d{1,2})[-./](\d{1,2})$/))) { [, y, m, d] = r; y = "20" + y; }
+    else if ((r = s.match(/^(\d{1,2})\s*[-./월]\s*(\d{1,2})\s*[.일]?$/))) { [, m, d] = r; y = String(new Date().getFullYear()); }
+    else return null;
+    y = +y; m = +m; d = +d;
+    if (!validYMD(y, m, d)) return null;
+    return `${y}-${pad(m)}-${pad(d)}`;
+  }
+  function normalizeTime(raw) {
+    const s = String(raw || "").trim();
+    if (!s) return "";
+    let h, mi, r;
+    if ((r = s.match(/^(\d{1,4})$/))) {
+      const n = r[1];
+      if (n.length <= 2) { h = n; mi = "0"; } else { h = n.slice(0, n.length - 2); mi = n.slice(-2); }
+    } else if ((r = s.match(/^(\d{1,2})\s*[:시.]\s*(\d{1,2})?\s*분?(?::\d{2})?$/))) { h = r[1]; mi = r[2] || "0"; }
+    else return null;
+    h = +h; mi = +mi;
+    if (h > 23 || mi > 59) return null;
+    return `${pad(h)}:${pad(mi)}`;
+  }
+  function normalizeDateTime(raw) {
+    const s = String(raw || "").trim().replace(/\s+/g, " ");
+    if (!s) return "";
+    const iso = s.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/);
+    if (iso) return normalizeDateTime(iso[1] + " " + iso[2]);
+    const r = s.match(/^(.+?)(?:\s*,\s*|\s+)(\d{1,2}\s*[:시.]\s*\d{0,2}\s*분?|\d{3,4})$/);
+    let date, time;
+    if (r && normalizeDate(r[1])) { date = normalizeDate(r[1]); time = normalizeTime(r[2]); }
+    else { date = normalizeDate(s); time = "00:00"; }
+    if (!date || !time) return null;
+    return `${date} ${time}`;
+  }
+  function normalizeKind(kind, raw) {
+    return kind === "date" ? normalizeDate(raw) : kind === "time" ? normalizeTime(raw) : normalizeDateTime(raw);
+  }
+  /* 숫자만 입력하는 중에는 구분자를 자동으로 넣어줌 (2026 → 2026-, 1500 → 15:00) */
+  function maskDigits(kind, value) {
+    const d = value.replace(/\D/g, "");
+    const date = (x) => x.slice(0, 4) + (x.length > 4 ? "-" + x.slice(4, 6) : "") + (x.length > 6 ? "-" + x.slice(6, 8) : "");
+    const time = (x) => x.slice(0, 2) + (x.length > 2 ? ":" + x.slice(2, 4) : "");
+    if (kind === "date") return date(d.slice(0, 8));
+    if (kind === "time") return time(d.slice(0, 4));
+    return date(d.slice(0, 8)) + (d.length > 8 ? " " + time(d.slice(8, 12)) : "");
+  }
+  const MAX_LEN = { date: 10, time: 5, datetime: 16 };
+  const PLACEHOLDER = { date: "YYYY-MM-DD", time: "hh:mm", datetime: "YYYY-MM-DD hh:mm" };
+  function onMaskedInput(e) {
+    const el = e.target, kind = el.dataset.kind;
+    if (!kind || e.isComposing) return;
+    // 맨 끝에서 숫자를 입력하는 경우에만 자동 서식 (중간 수정·붙여넣기는 그대로 두고 입력 확정 시 정리)
+    if (e.inputType === "insertText" && el.selectionStart === el.value.length && /^[\d\s:\-]*$/.test(el.value)) {
+      el.value = maskDigits(kind, el.value);
+    }
+  }
+  function onMaskedPaste(e) {
+    const el = e.target, kind = el.dataset.kind;
+    if (!kind) return;
+    const text = (e.clipboardData || window.clipboardData).getData("text");
+    const norm = normalizeKind(kind, text);
+    if (norm) { e.preventDefault(); el.value = norm; el.dispatchEvent(new Event("input", { bubbles: true })); }
+  }
+  /* 달력 팝업 */
+  function openPicker(btn, textEl) {
+    const native = btn.parentElement.querySelector(".cal-native");
+    const kind = textEl.dataset.kind;
+    const norm = normalizeKind(kind, textEl.value);
+    native.value = norm ? (kind === "datetime" ? norm.replace(" ", "T") : norm) : "";
+    try { native.showPicker(); } catch (err) { native.style.pointerEvents = "auto"; native.focus(); native.click(); native.style.pointerEvents = ""; }
+  }
+  function nativeToText(native) {
+    return native.type === "datetime-local" ? native.value.replace("T", " ") : native.value;
   }
   function esc(s) {
     return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -559,11 +674,15 @@
         return `<select ${common} ${w}>${opts.map((o) =>
           `<option value="${esc(o)}"${o === cur ? " selected" : ""}>${esc(o)}</option>`).join("")}</select>`;
       }
-      case "datetime":
-        return `<input ${common} ${w} type="datetime-local" value="${val}" />`;
       case "date":
+      case "datetime":
+        return `<div class="date-cell">
+          <input ${common} ${w} data-kind="${col.type}" type="text" inputmode="numeric" maxlength="${MAX_LEN[col.type]}" placeholder="${PLACEHOLDER[col.type]}" value="${val}" />
+          <button type="button" class="cal-btn" tabindex="-1" title="달력에서 선택" aria-label="달력에서 선택"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="12" height="11" rx="2"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"/></svg></button>
+          <input type="${col.type === "date" ? "date" : "datetime-local"}" class="cal-native" tabindex="-1" aria-hidden="true" />
+        </div>`;
       case "time":
-        return `<input ${common} ${w} type="${col.type}" value="${val}" />`;
+        return `<input class="ed mono" data-key="${col.key}" ${w} data-kind="time" type="text" inputmode="numeric" maxlength="5" placeholder="hh:mm" value="${val}" />`;
       default:
         return `<input ${common} ${w} type="text" value="${val}"${col.list ? ` list="${col.list}"` : ""} />`;
     }
@@ -652,6 +771,18 @@
     const row = rows.find((r) => r.id === id);
     if (!col || !row) return;
 
+    // 날짜·시간은 입력 형식을 정리하고, 잘못된 값이면 원래 값으로 되돌림
+    if (el.dataset.kind) {
+      const norm = normalizeKind(el.dataset.kind, el.value);
+      if (norm === null) {
+        el.value = toInputValue(col, row[col.key]);
+        el.classList.add("failed");
+        setTimeout(() => el.classList.remove("failed"), 1600);
+        setSaveStatus(`형식 오류 — ${PLACEHOLDER[el.dataset.kind]} 로 입력해주세요`, "err");
+        return;
+      }
+      el.value = norm;
+    }
     const next = toDbValue(col, el.value);
     const prev = row[col.key] ?? null;
     if (toInputValue(col, prev) === toInputValue(col, next)) return;
@@ -683,12 +814,24 @@
       syncSelectionUI();
       return;
     }
-    if (e.target.matches("select.ed, input.ed[type=date], input.ed[type=time], input.ed[type=datetime-local]")) {
+    if (e.target.matches("select.ed")) {
       saveCell(e.target);
+      return;
+    }
+    // 달력에서 날짜를 고르면 옆 입력칸에 넣고 저장
+    if (e.target.classList.contains("cal-native")) {
+      const text = e.target.parentElement.querySelector("input.ed");
+      if (e.target.value) { text.value = nativeToText(e.target); saveCell(text); }
     }
   });
+  tbody.addEventListener("click", (e) => {
+    const btn = e.target.closest(".cal-btn");
+    if (btn) openPicker(btn, btn.parentElement.querySelector("input.ed"));
+  });
+  tbody.addEventListener("paste", (e) => { if (e.target.dataset && e.target.dataset.kind) onMaskedPaste(e); });
   tbody.addEventListener("input", (e) => {
     const el = e.target;
+    if (el.dataset.kind) onMaskedInput(e);
     if (el.matches("textarea.ed")) autosize(el);
     // 티켓번호 입력하는 동안 링크 실시간 갱신
     if (el.dataset.key === "rms_no") {
@@ -722,8 +865,15 @@
   $("searchInput").addEventListener("input", (e) => { query = e.target.value; render(); });
 
   function applyDateRange() {
-    dateFrom = $("dateFrom").value;
-    dateTo = $("dateTo").value;
+    // 입력값을 YYYY-MM-DD로 정리 (잘못된 값은 빨간 글씨로 표시하고 조건에서 제외)
+    ["dateFrom", "dateTo"].forEach((id) => {
+      const el = $(id);
+      const norm = normalizeDate(el.value);
+      el.classList.toggle("invalid", norm === null);
+      if (norm !== null) el.value = norm;
+    });
+    dateFrom = normalizeDate($("dateFrom").value) || "";
+    dateTo = normalizeDate($("dateTo").value) || "";
     $("dateRange").classList.toggle("active", !!(dateFrom || dateTo));
     render();
   }
@@ -731,8 +881,18 @@
     $("dateFrom").value = ""; $("dateTo").value = "";
     applyDateRange();
   }
-  $("dateFrom").addEventListener("change", applyDateRange);
-  $("dateTo").addEventListener("change", applyDateRange);
+  ["dateFrom", "dateTo"].forEach((id) => {
+    const el = $(id);
+    const wrap = el.parentElement;
+    el.addEventListener("input", (e) => { onMaskedInput(e); el.classList.remove("invalid"); });
+    el.addEventListener("paste", onMaskedPaste);
+    el.addEventListener("change", applyDateRange);   // 입력 확정(포커스 아웃) 시 적용
+    el.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.isComposing) { e.preventDefault(); applyDateRange(); } });
+    wrap.querySelector(".cal-btn").addEventListener("click", () => openPicker(wrap.querySelector(".cal-btn"), el));
+    wrap.querySelector(".cal-native").addEventListener("change", (e) => {
+      if (e.target.value) { el.value = e.target.value; applyDateRange(); }
+    });
+  });
   $("dateClear").addEventListener("click", clearDateRange);
 
   document.addEventListener("change", (e) => {
