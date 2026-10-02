@@ -313,8 +313,8 @@ thead th {
   color: var(--ink-muted-80);
   font-size: 12px;
   font-weight: 600;
-  letter-spacing: -0.224px;
-  padding: 8px 10px;
+  letter-spacing: -0.3px;
+  padding: 8px 4px;
   border-bottom: 1px solid var(--hairline);
   border-right: 1px solid var(--divider-soft);
   text-align: left;

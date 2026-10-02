@@ -1,10 +1,12 @@
 {
-  "name": "works",
+  "name": "task-management-sheet-api",
   "version": "1.0.0",
   "private": true,
-  "description": "업무관리 시트 + 배포 관리 - Vercel 서버리스 API",
+  "description": "업무관리 시트 - Vercel 서버리스 API (데이터 저장용)",
+  "engines": {
+    "node": "24.x"
+  },
   "dependencies": {
-    "@supabase/supabase-js": "^2.117.2",
     "@vercel/kv": "^2.0.0"
   }
 }

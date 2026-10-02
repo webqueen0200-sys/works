@@ -26,7 +26,8 @@ function uid() {
 }
 
 async function apiFetchJson(path, options) {
-  const res = await fetch(API_BASE + path, options);
+  // cache: "no-store" — 저장 직후 새로고침 시 브라우저가 예전 응답을 재사용하지 않도록
+  const res = await fetch(API_BASE + path, { cache: "no-store", ...(options || {}) });
   if (!res.ok) {
     let detail = "";
     try {
@@ -1497,42 +1498,74 @@ async function checkConnection() {
   btn.disabled = true;
   const label = btn.textContent;
   btn.textContent = "확인 중...";
+
+  const lines = [];
+  let readOk = false, writeOk = false, readErr = "", writeErr = "";
+
+  // 1단계: 읽기 테스트 (단순 GET — CORS 사전확인 없음)
   try {
     const res = await fetch(`${API_BASE}/api/health`);
-    if (!res.ok) {
-      alert(
-        `API 응답 오류 (${res.status})\n\n` +
-        `주소: ${API_BASE}/api/health\n\n` +
-        `api 폴더가 저장소에 올라가 있는지, Vercel 배포가 성공했는지 확인해주세요.`
-      );
-      return;
-    }
-    const d = await res.json();
-    if (d.kvEnvDetected && d.ok) {
-      alert(`연결 정상입니다.\n\nAPI: ${d.api}\nNode: ${d.node}\nKV: ${d.kv}`);
+    if (res.ok) {
+      const d = await res.json();
+      readOk = true;
+      lines.push(`① 읽기(GET)      : 정상  [Node ${d.node} / KV ${d.kv}]`);
+      if (!d.kvEnvDetected) lines.push("   ※ KV 환경변수 미감지 — Vercel > Storage 에서 KV 연결 필요");
     } else {
-      alert(
-        `API는 살아있지만 데이터 저장소(KV)가 연결되지 않았습니다.\n\n` +
-        `KV 상태: ${d.kv || "미연결"}\n` +
-        `${d.kvError ? "오류: " + d.kvError + "\n" : ""}` +
-        `\n해결: Vercel 프로젝트 > Storage 탭 > Create Database > KV(Upstash Redis) 생성 > Connect > Redeploy`
-      );
+      readErr = `HTTP ${res.status}`;
+      lines.push(`① 읽기(GET)      : 실패  [${readErr}]`);
     }
-  } catch (err) {
-    alert(
-      `서버에 연결하지 못했습니다. (Failed to fetch)\n\n` +
-      `주소: ${API_BASE}/api/health\n\n` +
-      `원인은 보통 아래 둘 중 하나입니다.\n` +
-      `1) Vercel 배포가 실패해서 /api 주소가 존재하지 않음\n` +
-      `2) config.js의 API_BASE 주소가 실제 배포 주소와 다름\n\n` +
-      `위 주소를 브라우저 주소창에 직접 붙여넣어 열어보세요.\n` +
-      `404가 뜨면 배포 문제, JSON이 보이면 주소 문제입니다.\n\n` +
-      `오류: ${err && err.message ? err.message : err}`
-    );
-  } finally {
-    btn.disabled = false;
-    btn.textContent = label;
+  } catch (e) {
+    readErr = (e && e.message) || String(e);
+    lines.push(`① 읽기(GET)      : 실패  [${readErr}]`);
   }
+
+  // 2단계: 쓰기 테스트 (PUT — CORS 사전확인 OPTIONS 발생. 실제 데이터는 건드리지 않음)
+  try {
+    const res = await fetch(`${API_BASE}/api/tasks`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ month: "__연결테스트__", tasks: [] })
+    });
+    if (res.ok) {
+      writeOk = true;
+      lines.push("② 쓰기(PUT)      : 정상");
+    } else {
+      let detail = "";
+      try { const b = await res.json(); detail = b.error ? ` - ${b.error}` : ""; } catch (e) {}
+      writeErr = `HTTP ${res.status}${detail}`;
+      lines.push(`② 쓰기(PUT)      : 실패  [${writeErr}]`);
+    }
+  } catch (e) {
+    writeErr = (e && e.message) || String(e);
+    lines.push(`② 쓰기(PUT)      : 실패  [${writeErr}]`);
+  }
+
+  // 진단 결과
+  lines.push("");
+  if (readOk && writeOk) {
+    lines.push("▶ 모두 정상입니다. 입력한 값이 서버에 저장됩니다.");
+  } else if (readOk && !writeOk) {
+    if (writeErr.includes("405")) {
+      lines.push("▶ 서버의 api/tasks.js 가 구버전입니다 (PUT 처리 없음).");
+      lines.push("   api/tasks.js 를 최신 파일로 올리고 Redeploy 하세요.");
+    } else if (writeErr.includes("Failed to fetch")) {
+      lines.push("▶ 읽기는 되는데 쓰기만 막혔습니다. CORS 사전확인(OPTIONS) 차단입니다.");
+      lines.push("   확인 1) api/_cors.js 가 배포됐는지 (OPTIONS 응답 담당)");
+      lines.push("   확인 2) api/tasks.js 가 withApi 를 쓰는 최신 버전인지");
+      lines.push("   확인 3) Vercel > Settings > Deployment Protection 끄기");
+      lines.push("   확인 4) Vercel > Firewall 의 Attack Challenge Mode 끄기");
+    } else {
+      lines.push("▶ 쓰기 요청이 서버에서 거부됐습니다. 위 오류 코드를 확인하세요.");
+    }
+  } else {
+    lines.push("▶ 서버에 요청 자체가 닿지 않습니다.");
+    lines.push(`   주소창에 ${API_BASE}/api/health 를 직접 열어보세요.`);
+    lines.push("   JSON이 보이면 config.js 의 API_BASE 주소 문제입니다.");
+  }
+
+  alert(`연결 진단 결과\n${"-".repeat(34)}\n` + lines.join("\n"));
+  btn.disabled = false;
+  btn.textContent = label;
 }
 
 // ---------------- 주간보고 작성 (주간보고_자동화_정책 기준) ----------------
