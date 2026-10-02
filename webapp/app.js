@@ -161,7 +161,22 @@ async function flushSave() {
     const t = new Date();
     setSaveStatus("ok", `저장됨 ${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")}`);
   } catch (err) {
-    saveState.lastError = (err && err.message) || String(err);
+    const msg = (err && err.message) || String(err);
+    let hint = "";
+    if (msg.includes("405")) {
+      hint = "\n\n[원인] 서버의 api/tasks.js 가 예전 버전입니다. PUT(월 전체 저장) 처리가 없습니다." +
+             "\n[해결] api/tasks.js 를 최신 파일로 올리고 Vercel에서 Redeploy 하세요.";
+    } else if (msg.includes("404")) {
+      hint = "\n\n[원인] /api/tasks 주소를 찾을 수 없습니다." +
+             "\n[해결] api 폴더가 배포됐는지, Root Directory 설정이 맞는지 확인하세요.";
+    } else if (msg.includes("500")) {
+      hint = "\n\n[원인] 서버에서 오류가 났습니다. 보통 KV(데이터 저장소) 미연결입니다." +
+             "\n[해결] Vercel > Storage 에서 KV 연결 후 Redeploy 하세요.";
+    } else if (msg.includes("Failed to fetch")) {
+      hint = "\n\n[원인] 서버에 요청이 닿지 않았습니다." +
+             "\n[해결] Vercel > Settings > Deployment Protection 을 끄거나, 배포 상태를 확인하세요.";
+    }
+    saveState.lastError = msg + hint;
     console.error("[저장 실패]", err);
     setSaveStatus("error", "저장 실패 (클릭)");
   } finally {
