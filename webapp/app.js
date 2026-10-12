@@ -479,6 +479,52 @@ function groupLabel(group) {
   })[group] || group;
 }
 
+// ---------------- 셀 이동 (Enter / Shift+Enter) ----------------
+
+// 값을 수정하면 표 전체가 다시 그려지므로, 이동할 위치를 기억해 두었다가
+// 다시 그린 뒤에 그 칸으로 포커스를 돌려줍니다.
+let pendingFocus = null;
+
+function editableKeys() {
+  return COLUMNS.filter(c => c.type !== "readonly").map(c => c.key);
+}
+
+function nextCellTarget(rowId, colKey, dir) {
+  const keys = editableKeys();
+  const ids = state.visibleRowIds || [];
+  let ci = keys.indexOf(colKey);
+  let ri = ids.indexOf(rowId);
+  if (ci === -1 || ri === -1) return null;
+  ci += dir;
+  if (ci >= keys.length) { ci = 0; ri += 1; }      // 행 끝 → 다음 행 첫 칸
+  if (ci < 0) { ci = keys.length - 1; ri -= 1; }   // 행 처음 → 이전 행 끝 칸
+  if (ri < 0 || ri >= ids.length) return null;
+  return { rowId: ids[ri], colKey: keys[ci] };
+}
+
+function applyPendingFocus() {
+  if (!pendingFocus) return;
+  const { rowId, colKey } = pendingFocus;
+  pendingFocus = null;
+  const el = document.querySelector(`[data-row-id="${rowId}"][data-col-key="${colKey}"]`);
+  if (!el) return;
+  el.focus();
+  if (typeof el.select === "function") { try { el.select(); } catch (e) {} }
+  el.scrollIntoView({ block: "nearest", inline: "nearest" });
+}
+
+function cellKeydown(e) {
+  if (e.key !== "Enter") return;
+  const el = e.currentTarget;
+  // 여러 줄 입력칸(업무상세·비고)은 Enter를 줄바꿈으로 두고, Ctrl+Enter로 이동합니다.
+  if (el.tagName === "TEXTAREA" && !e.ctrlKey) return;
+  e.preventDefault();
+  pendingFocus = nextCellTarget(el.dataset.rowId, el.dataset.colKey, e.shiftKey ? -1 : 1);
+  if (!pendingFocus) { el.blur(); return; }
+  el.blur();                      // change 이벤트 발생 → 저장 → 표 다시 그림
+  setTimeout(applyPendingFocus, 0); // 값이 그대로여서 다시 그리지 않은 경우의 대비
+}
+
 // ---------------- 정렬 / 행 색상 ----------------
 
 // 진행현황에 따른 행 배경색 클래스
@@ -579,6 +625,13 @@ function renderSheet() {
     COLUMNS.forEach(col => {
       const td = document.createElement("td");
       td.appendChild(renderCell(task, col));
+      // Enter 이동을 위해 각 입력 요소에 위치 정보를 붙입니다.
+      td.querySelectorAll("input, select, textarea").forEach(el => {
+        if (el.classList.contains("date-picker")) return; // 숨겨진 달력 입력은 제외
+        el.dataset.rowId = task.id;
+        el.dataset.colKey = col.key;
+        el.addEventListener("keydown", cellKeydown);
+      });
       tr.appendChild(td);
     });
     const doneTd = document.createElement("td");
@@ -602,6 +655,10 @@ function renderSheet() {
   });
 
   document.getElementById("rowCount").textContent = `${rows.length} / ${state.tasks.length}건`;
+
+  // Enter 이동이 현재 화면에 보이는 순서(정렬·검색 반영)를 따르도록 기록
+  state.visibleRowIds = rows.map(t => t.id);
+  applyPendingFocus();
 }
 
 function renderCell(task, col) {
@@ -1373,7 +1430,12 @@ function exportCsv() {
   const lines = state.tasks.map(t => {
     const cells = CSV_COLUMNS.map(c => {
       let v = t[c.key] ?? "";
-      if (CSV_DATE_KEYS.includes(c.key)) v = isoToMMDD(v); // 일정은 MM/DD 로 내보냄
+      if (CSV_DATE_KEYS.includes(c.key)) {
+        // 일정은 MM/DD 로 내보내되, 엑셀이 날짜로 자동 변환해 "#######" 으로
+        // 표시하지 않도록 ="10/08" 형태(텍스트 강제)로 기록합니다.
+        const md = isoToMMDD(v);
+        return md ? `"=""${md}"""` : `""`;
+      }
       return csvEscape(v);
     });
     return [csvEscape(t.no), ...cells].join(",");
@@ -1468,6 +1530,9 @@ async function handleCsvFile(e) {
     Object.entries(colIndex).forEach(([key, i]) => {
       if (CSV_READONLY_KEYS.includes(key)) return; // 총합/MM은 다시 계산
       let v = (r[i] ?? "").trim();
+      // 내보내기에서 쓴 텍스트 강제 형식( ="10/08" )을 되돌립니다.
+      const m = /^="(.*)"$/.exec(v);
+      if (m) v = m[1];
       if (CSV_DATE_KEYS.includes(key)) v = mmddToIso(v, year);
       t[key] = v;
     });
