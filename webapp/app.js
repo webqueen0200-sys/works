@@ -9,6 +9,7 @@ const state = {
   settings: { targetMM: { ...DEFAULT_TARGET_MM }, workDays: 20 },
   view: "dashboard",    // "dashboard" | "sheet" | "summary"
   searchText: "",
+  statusFilter: "",   // 진행현황 필터 ("" = 전체)
   sortKey: null,        // 정렬 기준 컬럼 key (null이면 시트 등록 순서)
   sortDir: null         // "asc" | "desc"
 };
@@ -377,6 +378,7 @@ function bindGlobalControls() {
   document.getElementById("btnSheetView").onclick = () => setView("sheet");
   document.getElementById("btnSettings").onclick = openSettings;
   document.getElementById("searchInput").oninput = (e) => { state.searchText = e.target.value; renderSheet(); };
+  buildStatusFilter();
   document.getElementById("btnExport").onclick = exportCsv;
   document.getElementById("btnImport").onclick = triggerCsvImport;
   document.getElementById("csvFileInput").onchange = handleCsvFile;
@@ -477,6 +479,30 @@ function groupLabel(group) {
     meta: "관리", classify: "업무 분류", content: "업무 내용", requester: "요청",
     assignee: "업무 담당자", schedule: "일정", hours: "업무투입", note: "비고"
   })[group] || group;
+}
+
+// ---------------- 진행현황 필터 ----------------
+
+// 진행현황 항목별로 업무 목록만 추려 보는 드롭다운
+function buildStatusFilter() {
+  const sel = document.getElementById("statusFilter");
+  if (!sel) return;
+  const counts = {};
+  state.tasks.forEach(t => {
+    const k = t.status || "__blank__";
+    counts[k] = (counts[k] || 0) + 1;
+  });
+  sel.innerHTML = "";
+  sel.appendChild(new Option(`진행현황 전체 (${state.tasks.length})`, ""));
+  OPTIONS.진행현황.forEach(st => {
+    if (!counts[st]) return;                       // 해당 상태 업무가 없으면 숨김
+    sel.appendChild(new Option(`${st} (${counts[st]})`, st));
+  });
+  if (counts.__blank__) sel.appendChild(new Option(`미지정 (${counts.__blank__})`, "__blank__"));
+  sel.value = state.statusFilter;
+  if (sel.value !== state.statusFilter) { state.statusFilter = ""; sel.value = ""; }
+  sel.classList.toggle("is-active", Boolean(state.statusFilter));
+  sel.onchange = () => { state.statusFilter = sel.value; renderSheet(); };
 }
 
 // ---------------- 셀 이동 (Enter / Shift+Enter) ----------------
@@ -613,7 +639,10 @@ function renderSheet() {
   theadCols.appendChild(th2);
 
   const q = state.searchText.trim().toLowerCase();
+  const sf = state.statusFilter;
   let rows = state.tasks.filter(t => {
+    if (sf === "__blank__") { if (t.status) return false; }
+    else if (sf && t.status !== sf) return false;
     if (!q) return true;
     return (t.title || "").toLowerCase().includes(q) || (t.detail || "").toLowerCase().includes(q) || (t.ticket || "").toLowerCase().includes(q);
   });
@@ -658,6 +687,7 @@ function renderSheet() {
 
   // Enter 이동이 현재 화면에 보이는 순서(정렬·검색 반영)를 따르도록 기록
   state.visibleRowIds = rows.map(t => t.id);
+  buildStatusFilter();
   applyPendingFocus();
 }
 
@@ -1047,6 +1077,8 @@ function renderDashboard() {
       ? reqEntries.map(([name, cnt]) => barRow(escapeHtml(name), cnt, maxReq, { format: v => `${v}건` })).join("")
       : `<p class="dash-empty">요청자 정보가 입력된 업무가 없습니다.</p>`);
 
+  renderAssigneeWorkload(tasks);
+
   // 마감임박 · 지연 업무 (완료/취소 제외, 마감일 있는 건 중 오늘 이후 3일 이내 또는 이미 지난 건)
   const dueSoon = tasks
     .filter(t => t.dueDate && !["완료", "취소"].includes(t.status))
@@ -1088,6 +1120,71 @@ function renderDashboard() {
         ${t.priority ? pillHtml(t.priority, priorityTone(t.priority)) : ""}
         ${pillHtml(t.status || "-", statusTone(t.status))}
       </div>`).join("")}</div>` : `<p class="dash-empty">차주로 예정된 업무가 없습니다.</p>`);
+}
+
+// ---------- 담당자별 진행 중인 업무 건 수 ----------
+
+// 담당자 역할 ↔ 업무현황 시트의 담당자 열 매핑
+const ASSIGNEE_ROLE_KEYS = { 기획: "planner", 디자인: "designer", 퍼블: "publisher", GA: "ga" };
+
+function renderAssigneeWorkload(tasks) {
+  const el = document.getElementById("dashAssigneeCard");
+  if (!el) return;
+
+  // "진행 중"으로 볼 상태 (완료·취소·보류 제외)
+  const ONGOING = ["진행", "개발", "검수", "대기", "검토", "접수", "예정"];
+  const ongoing = tasks.filter(t => ONGOING.includes(t.status));
+
+  const roles = Object.keys(ASSIGNEE_ROLE_KEYS).filter(r => (ASSIGNEE_OPTIONS[r] || []).length);
+  let rows = [];
+  roles.forEach(role => {
+    const key = ASSIGNEE_ROLE_KEYS[role];
+    (ASSIGNEE_OPTIONS[role] || []).forEach(name => {
+      const mine = ongoing.filter(t => t[key] === name);
+      rows.push({
+        role, name,
+        total: mine.length,
+        active: mine.filter(t => t.status === "진행").length,
+        waiting: mine.filter(t => ["대기", "검토", "접수", "예정"].includes(t.status)).length
+      });
+    });
+  });
+
+  // 담당자가 지정되지 않은 진행 중 업무
+  const unassigned = ongoing.filter(t =>
+    !Object.values(ASSIGNEE_ROLE_KEYS).some(k => (t[k] || "").trim())
+  ).length;
+
+  if (!rows.length) {
+    el.innerHTML = `<h3>담당자별 진행 중인 업무</h3><p class="dash-empty">등록된 담당자가 없습니다. '담당자 설정'에서 추가하세요.</p>`;
+    return;
+  }
+
+  const grand = rows.reduce((a, r) => a + r.total, 0);
+
+  let html = `<h3>담당자별 진행 중인 업무</h3>
+    <table class="summary-table assignee-load">
+      <thead><tr><th>구분</th><th>담당자</th><th>진행</th><th>대기·예정</th><th>합계</th></tr></thead>
+      <tbody>`;
+  roles.forEach(role => {
+    const group = rows.filter(r => r.role === role);
+    if (!group.length) return;
+    group.forEach((r, i) => {
+      html += `<tr>
+        ${i === 0 ? `<td rowspan="${group.length}">${role}</td>` : ""}
+        <td>${escapeHtml(r.name)}</td>
+        <td>${r.active ? `<span class="count-hl">${r.active}</span>` : "-"}</td>
+        <td>${r.waiting ? `<span class="count-sub">${r.waiting}</span>` : "-"}</td>
+        <td>${r.total ? `<span class="count-hl">${r.total}</span>` : "-"}</td>
+      </tr>`;
+    });
+  });
+  html += `<tr class="total-row"><td colspan="4">전체 진행 중</td><td><span class="count-hl">${grand}</span></td></tr>`;
+  html += `</tbody></table>`;
+  if (unassigned) {
+    html += `<p class="dash-empty">※ 담당자 미지정 진행 중 업무 ${unassigned}건</p>`;
+  }
+  el.innerHTML = html;
 }
 
 // ---------------- Settings modal ----------------
@@ -1650,10 +1747,6 @@ function mdShort(dateStr) {
   return dateStr ? dateStr.slice(5).replace("-", "/") : "";
 }
 
-function majorBracket(t) {
-  return t.major ? `[${t.major}]` : "";
-}
-
 async function generateWeeklyReport() {
   const btn = document.getElementById("btnWeeklyReport");
   btn.disabled = true;
@@ -1705,16 +1798,16 @@ async function generateWeeklyReport() {
     lines.push("");
     lines.push("## 건수 집계");
     lines.push("");
+    lines.push(`- 접수 : ${receivedCount}건`);
     lines.push(`- 진행 : ${inProgressCount}건`);
     lines.push(`- 완료 : ${doneInRange.length}건`);
-    lines.push(`- 접수 : ${receivedCount}건`);
     lines.push("");
     lines.push("## 진행중 업무 목록");
     lines.push("");
     if (progressList.length) {
       progressList.forEach(t => {
         const due = t.dueDate ? `(${mdShort(t.dueDate)})` : "(일정 협의 중)";
-        lines.push(`- ${majorBracket(t)}${t.title}${due}`);
+        lines.push(`- ${t.title}${due}`);
       });
     } else {
       lines.push("- (해당 없음)");
@@ -1723,7 +1816,7 @@ async function generateWeeklyReport() {
     lines.push("## 완료 업무 목록");
     lines.push("");
     if (doneList.length) {
-      doneList.forEach(t => lines.push(`- ${majorBracket(t)}${t.title}(${mdShort(t.doneDate)})`));
+      doneList.forEach(t => lines.push(`- ${t.title}(${mdShort(t.doneDate)})`));
     } else {
       lines.push("- (해당 없음)");
     }
@@ -1735,7 +1828,7 @@ async function generateWeeklyReport() {
       lines.push("");
       needCheck.forEach(t => {
         const recv = t.receivedDate ? `(접수일 ${mdShort(t.receivedDate)})` : "(접수일 미상)";
-        lines.push(`- ${majorBracket(t)} ${t.title} ${recv}`);
+        lines.push(`- ${t.title} ${recv}`);
       });
     }
 

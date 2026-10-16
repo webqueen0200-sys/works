@@ -34,7 +34,7 @@
 
 <nav class="global-nav" aria-label="서비스 메뉴">
   <a href="https://webqueen0200-sys.github.io/works/webapp/index.html" class="active" aria-current="page">2026 업무관리</a>
-  <a href="https://webqueen0200-sys.github.io/works/developlist.html">배포 관리</a>
+  <a href="https://webqueen0200-sys.github.io/works/developlist.html" target="_blank" rel="noopener">배포 관리</a>
 </nav>
 
 <header class="app-header">
@@ -61,6 +61,7 @@
   </div>
   <div class="toolbar-right">
     <div id="sheetToolsGroup" class="sheet-tools" style="display:none">
+      <select id="statusFilter" class="status-filter" title="진행현황으로 걸러보기"></select>
       <input id="searchInput" type="text" placeholder="업무명 · 업무상세 · 티켓번호 검색" />
       <span id="rowCount" class="row-count"></span>
       <button id="btnAddRow" class="btn btn-primary">+ 행 추가</button>
@@ -88,6 +89,7 @@
       <div id="dashRequesterCard" class="summary-card"></div>
     </div>
     <div class="dash-lists">
+      <div id="dashAssigneeCard" class="summary-card"></div>
       <div id="dashUrgentCard" class="summary-card"></div>
       <div id="dashDueCard" class="summary-card"></div>
       <div id="dashNextWeekCard" class="summary-card"></div>

@@ -242,6 +242,25 @@ button { font-family: var(--font-text); }
 }
 .tab-btn:active { transform: scale(0.95); }
 
+.status-filter {
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: var(--r-pill);
+  padding: 9px 12px;
+  font-size: 13px;
+  font-family: var(--font-text);
+  background: var(--canvas);
+  color: var(--ink);
+  height: 40px;
+  cursor: pointer;
+}
+.status-filter:focus { outline: none; border-color: var(--primary-focus); }
+.status-filter.is-active {
+  border-color: var(--primary);
+  background: rgba(0, 102, 204, 0.08);
+  color: var(--primary);
+  font-weight: 600;
+}
+
 #searchInput {
   border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: var(--r-pill);
@@ -729,10 +748,22 @@ tbody input:focus, tbody select:focus, tbody textarea:focus {
 .bar-value {
   flex: 0 0 auto;
   font-family: var(--font-mono);
-  font-size: 11.5px;
-  color: var(--ink-muted-48);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--primary);
   white-space: nowrap;
 }
+
+/* 표 안의 건수 강조 */
+.count-hl {
+  font-weight: 700;
+  color: var(--primary);
+}
+.count-sub {
+  font-weight: 600;
+  color: var(--ink-muted-80);
+}
+.assignee-load td { padding: 6px 8px; }
 
 .dash-list { display: flex; flex-direction: column; gap: 2px; }
 .dash-list-row {
