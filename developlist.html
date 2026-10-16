@@ -294,6 +294,53 @@
   .global-nav a:focus-visible { outline: 2px solid #0071e3; outline-offset: -2px; }
   @media (max-width: 640px) { .global-nav { padding: 0 8px; } }
 
+  .global-nav a .ext { font-size: 10px; margin-left: 4px; opacity: .7; }
+
+  /* ---------- 검색 추가 팝업 ---------- */
+  .modal-overlay {
+    position: fixed; inset: 0; z-index: 100; display: flex; align-items: flex-start; justify-content: center;
+    padding: 10vh 16px 16px; background: rgba(0, 0, 0, 0.4);
+  }
+  .modal-overlay[hidden] { display: none; }
+  .modal {
+    width: 100%; max-width: 640px; max-height: 80vh; display: flex; flex-direction: column;
+    background: var(--canvas); border: 1px solid var(--hairline); border-radius: var(--r-lg); overflow: hidden;
+  }
+  .modal-head { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px 4px; }
+  .modal-head h2 { margin: 0; font-family: var(--font-display); font-size: 21px; font-weight: 600; letter-spacing: 0.231px; }
+  .modal-desc { margin: 0; padding: 0 24px 14px; font-size: 13px; color: var(--ink-muted-48); }
+  .modal-close {
+    width: 32px; height: 32px; border: none; border-radius: var(--r-pill); background: var(--surface-chip);
+    color: var(--ink); font-size: 13px; cursor: pointer;
+  }
+  .modal-close:active { transform: scale(0.95); }
+  .modal-search { display: flex; gap: 8px; align-items: center; padding: 0 24px 14px; border-bottom: 1px solid var(--divider-soft); }
+  .seg { display: inline-flex; flex: 0 0 auto; padding: 3px; gap: 2px; border-radius: var(--r-pill); background: var(--canvas-parchment); }
+  .seg button {
+    border: none; background: transparent; padding: 7px 14px; border-radius: var(--r-pill);
+    font-size: 13px; color: var(--ink-muted-80); cursor: pointer; white-space: nowrap;
+  }
+  .seg button.active { background: var(--canvas); color: var(--primary); font-weight: 600; box-shadow: 0 0 0 1px var(--hairline); }
+  #pickQuery {
+    flex: 1; min-width: 0; height: 40px; padding: 0 18px; border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: var(--r-pill); font-family: var(--font-text); font-size: 14px; color: var(--ink);
+  }
+  #pickQuery::placeholder { color: var(--ink-muted-48); }
+  #pickQuery:focus { outline: none; border-color: var(--primary-focus); }
+  .pick-meta { padding: 10px 24px 6px; font-family: var(--font-mono); font-size: 11px; color: var(--ink-muted-48); }
+  .pick-list { flex: 1; overflow-y: auto; padding: 0 12px 12px; min-height: 180px; }
+  .pick-empty { padding: 48px 12px; text-align: center; font-size: 13px; color: var(--ink-muted-48); }
+  .pick-empty.error { color: var(--danger); }
+  .pick-item {
+    display: flex; align-items: flex-start; gap: 12px; width: 100%; padding: 10px 12px; border: none;
+    border-radius: var(--r-sm); background: transparent; text-align: left; cursor: pointer; font-family: var(--font-text);
+  }
+  .pick-item:hover, .pick-item:focus-visible { background: rgba(0, 102, 204, 0.06); outline: none; }
+  .pick-item .pt { flex: 0 0 64px; font-family: var(--font-mono); font-size: 13px; color: var(--ink-muted-48); padding-top: 1px; }
+  .pick-item .pn { flex: 1; font-size: 14px; color: var(--ink); line-height: 1.45; word-break: break-word; }
+  .pick-item:hover .pn { color: var(--primary); text-decoration: underline; text-underline-offset: 3px; }
+  .pick-item mark { background: rgba(255, 204, 0, 0.35); color: inherit; border-radius: 2px; padding: 0 1px; }
+
   @media (max-width: 640px) {
     .app-header { padding: 0 16px; }
     .brand-text h1 { font-size: 18px; }
@@ -309,7 +356,7 @@
 </head>
 <body>
 <nav class="global-nav" aria-label="서비스 메뉴">
-  <a href="https://webqueen0200-sys.github.io/works/webapp/index.html">2026 업무관리</a>
+  <a href="https://webqueen0200-sys.github.io/works/webapp/index.html" target="_blank" rel="noopener" title="새 창으로 열기">2026 업무관리 <span class="ext" aria-hidden="true">↗</span></a>
   <a href="https://webqueen0200-sys.github.io/works/developlist.html" class="active" aria-current="page">배포 관리</a>
 </nav>
 
@@ -337,6 +384,7 @@
     <span id="countLabel" class="row-count"></span>
     <span id="saveStatus" class="save-status"></span>
     <button id="addBtn" class="btn btn-primary">+ 행 추가</button>
+    <button id="searchAddBtn" class="btn" title="업무관리 목록에서 업무를 검색해 행으로 추가">검색 추가</button>
     <button id="deleteBtn" class="btn btn-ghost" disabled>선택 삭제</button>
     <button id="csvBtn" class="btn btn-ghost" title="현재 목록(검색·기간 조건 적용)을 CSV로 저장">CSV 다운로드</button>
   </div>
@@ -356,6 +404,26 @@
     </table>
   </div>
 </main>
+
+<!-- 검색 추가 팝업: 업무관리(업무현황) 데이터에서 티켓번호·업무명 검색 -->
+<div id="pickOverlay" class="modal-overlay" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="pickTitle">
+    <div class="modal-head">
+      <h2 id="pickTitle">업무관리에서 불러오기</h2>
+      <button type="button" class="modal-close" id="pickClose" aria-label="닫기">✕</button>
+    </div>
+    <p class="modal-desc">업무명을 클릭하면 새 행에 티켓번호와 업무명이 입력됩니다.</p>
+    <div class="modal-search">
+      <div class="seg" role="tablist" aria-label="검색 항목">
+        <button type="button" data-field="ticket" role="tab">티켓번호</button>
+        <button type="button" data-field="title" class="active" role="tab">업무명</button>
+      </div>
+      <input id="pickQuery" type="search" placeholder="검색어를 입력하세요" autocomplete="off" />
+    </div>
+    <div id="pickMeta" class="pick-meta"></div>
+    <div id="pickList" class="pick-list"></div>
+  </div>
+</div>
 
 
 <script>
@@ -384,8 +452,9 @@
 
   /* 구성원 목록 — 기획 / 퍼블리싱 / 검수자 드롭다운에 사용 */
   const MEMBERS = ["", "김은영", "송승현", "전*현", "전*혜", "김*윤", "최*", "이*희"];
-  /* 기획 담당자 목록 — 구성원 목록에서 전*현(전상현) 제외 */
-  const PLANNERS = MEMBERS.filter((m) => m !== "전*현");
+  /* 기획 / 퍼블리싱 담당자 목록 */
+  const PLANNERS = ["", "전*현", "전*혜", "송승현", "김은영"];
+  const PUBLISHERS = ["", "김*윤", "최*", "이*희"];
 
   /* 컬럼 정의 — 시트4 순서와 동일. rms_no 컬럼은 화면에서 "티켓번호"로 표시 */
   const COLUMNS = [
@@ -401,7 +470,7 @@
     { key: "file_list",      label: "파일목록",      type: "textarea", w: 240 },
     { key: "requester",      label: "요청자",        type: "text",     w: 80 },
     { key: "planner",        label: "기획",          type: "select",   w: 88, options: PLANNERS },
-    { key: "publisher",      label: "퍼블리싱",      type: "select",   w: 88, options: MEMBERS },
+    { key: "publisher",      label: "퍼블리싱",      type: "select",   w: 88, options: PUBLISHERS },
     { key: "developer",      label: "개발담당자",    type: "text",     w: 84 },
     { key: "impact",         label: "타서비스 영향도", type: "textarea", w: 240 },
     { key: "stg_review_at",  label: "검수일시",      type: "datetime", w: 136 },  // YYYY-MM-DD hh:mm 입력 + 달력
@@ -513,6 +582,20 @@
       return;
     }
     const { error } = await db.from(TABLE).update({ [key]: value }).eq("id", id);
+    if (error) throw error;
+  }
+  async function updateFields(id, patch) {
+    if (MODE === "api") {
+      await api(`/api/deployments/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(patch) });
+      return;
+    }
+    if (MODE === "local") {
+      const list = local.read();
+      const r = list.find((x) => x.id === id);
+      if (r) { Object.assign(r, patch); local.write(list); }
+      return;
+    }
+    const { error } = await db.from(TABLE).update(patch).eq("id", id);
     if (error) throw error;
   }
   async function deleteRows(ids) {
@@ -919,19 +1002,25 @@
     }
   });
 
+  /* 빈 행을 만들어 맨 위에 보여줌 (행 추가 · 검색 추가 공통) */
+  async function addBlankRow() {
+    const row = await insertBlank();
+    rows.unshift(row);            // 새 행은 항상 맨 위
+    // 새 행은 배포일이 비어 있으므로 검색·기간 조건을 풀어서 바로 보이게 함
+    query = ""; $("searchInput").value = "";
+    $("dateFrom").value = ""; $("dateTo").value = ""; dateFrom = ""; dateTo = "";
+    $("dateRange").classList.remove("active");
+    freshId = row.id;
+    render();
+    document.querySelector(".table-scroll").scrollTo({ top: 0, left: 0 });
+    return row;
+  }
+
   $("addBtn").addEventListener("click", async () => {
     const btn = $("addBtn");
     btn.disabled = true;
     try {
-      const row = await insertBlank();
-      rows.unshift(row);            // 새 행은 항상 맨 위
-      // 새 행은 배포일이 비어 있으므로 검색·기간 조건을 풀어서 바로 보이게 함
-      query = ""; $("searchInput").value = "";
-      $("dateFrom").value = ""; $("dateTo").value = ""; dateFrom = ""; dateTo = "";
-      $("dateRange").classList.remove("active");
-      freshId = row.id;
-      render();
-      document.querySelector(".table-scroll").scrollTo({ top: 0, left: 0 });
+      const row = await addBlankRow();
       const first = tbody.querySelector(`tr[data-id="${CSS.escape(row.id)}"] .ed`);
       if (first) first.focus();
     } catch (e) {
@@ -941,6 +1030,137 @@
       btn.disabled = false;
     }
   });
+
+  /* ---------- 검색 추가: 업무관리(업무현황) 데이터에서 불러오기 ---------- */
+  const pick = { rowId: null, field: "title", tasks: null, loadedAt: 0, loading: null, error: "" };
+  const PICK_LIMIT = 100;
+
+  // 업무관리의 모든 월 시트(업무현황_N월)에서 티켓번호·업무명을 모아 중복 제거
+  async function loadAllTasks() {
+    if (pick.tasks && Date.now() - pick.loadedAt < 60 * 1000) return pick.tasks;
+    if (pick.loading) return pick.loading;
+    pick.loading = (async () => {
+      if (!API) throw new Error("업무관리 API(API_BASE)가 설정되지 않았습니다.");
+      const months = (await api("/api/months")).months || [];
+      const lists = await Promise.all(months.map((m) =>
+        api(`/api/tasks?month=${encodeURIComponent(m)}`).then((d) => d.tasks || []).catch(() => [])));
+      const seen = new Set(), out = [];
+      lists.flat().forEach((t) => {
+        const ticket = t.ticket == null ? "" : String(t.ticket).trim();
+        const title = t.title == null ? "" : String(t.title).trim();
+        if (!ticket && !title) return;
+        const k = ticket + "\u0000" + title;
+        if (seen.has(k)) return;
+        seen.add(k); out.push({ ticket, title });
+      });
+      pick.tasks = out; pick.loadedAt = Date.now();
+      return out;
+    })();
+    try { return await pick.loading; } finally { pick.loading = null; }
+  }
+
+  function highlight(text, q) {
+    const t = String(text || "");
+    const i = q ? t.toLowerCase().indexOf(q.toLowerCase()) : -1;
+    if (i < 0) return esc(t);
+    return esc(t.slice(0, i)) + "<mark>" + esc(t.slice(i, i + q.length)) + "</mark>" + esc(t.slice(i + q.length));
+  }
+
+  function renderPick() {
+    const list = $("pickList"), meta = $("pickMeta");
+    const q = $("pickQuery").value.trim();
+    if (pick.error) { meta.textContent = ""; list.innerHTML = `<div class="pick-empty error">${esc(pick.error)}</div>`; return; }
+    if (!pick.tasks) { meta.textContent = ""; list.innerHTML = `<div class="pick-empty">업무관리 데이터를 불러오는 중...</div>`; return; }
+    if (!q) { meta.textContent = ""; list.innerHTML = `<div class="pick-empty">검색어를 입력하세요.</div>`; return; }
+    const ql = q.toLowerCase();
+    const hits = pick.tasks.filter((t) => t[pick.field].toLowerCase().includes(ql));
+    meta.textContent = hits.length > PICK_LIMIT ? `검색 결과 ${hits.length}건 · 상위 ${PICK_LIMIT}건 표시` : `검색 결과 ${hits.length}건`;
+    if (hits.length === 0) { list.innerHTML = `<div class="pick-empty">검색 결과가 없습니다.</div>`; return; }
+    list.innerHTML = hits.slice(0, PICK_LIMIT).map((t, i) =>
+      `<button type="button" class="pick-item" data-i="${pick.tasks.indexOf(t)}" title="이 업무로 입력">
+        <span class="pt">${pick.field === "ticket" ? highlight(t.ticket, q) : esc(t.ticket) || "-"}</span>
+        <span class="pn">${pick.field === "title" ? highlight(t.title, q) : esc(t.title) || "(업무명 없음)"}</span>
+      </button>`).join("");
+  }
+
+  async function openPick(rowId) {
+    pick.rowId = rowId; pick.error = "";
+    $("pickQuery").value = "";
+    $("pickOverlay").hidden = false;
+    renderPick();
+    setTimeout(() => $("pickQuery").focus(), 0);
+    try { await loadAllTasks(); }
+    catch (e) { console.error(e); pick.error = "업무관리 데이터를 불러오지 못했습니다. (" + (e.message || e) + ")"; }
+    if (!$("pickOverlay").hidden) renderPick();
+  }
+
+  // 업무를 고르지 않고 닫으면, 방금 만든 빈 행은 지움
+  async function closePick() {
+    $("pickOverlay").hidden = true;
+    const id = pick.rowId; pick.rowId = null;
+    const row = rows.find((r) => r.id === id);
+    const blank = row && COLUMNS.every((c) => c.type === "auto" || row[c.key] == null || row[c.key] === "");
+    if (blank) {
+      try { await deleteRows([id]); rows = rows.filter((r) => r.id !== id); selected.delete(id); render(); }
+      catch (e) { console.error(e); }
+    }
+  }
+
+  async function choosePick(task) {
+    const id = pick.rowId;
+    const row = rows.find((r) => r.id === id);
+    if (!row) { $("pickOverlay").hidden = true; return; }
+    const patch = { rms_no: task.ticket ? task.ticket.replace(/^#/, "") : null, task_name: task.title || null };
+    try {
+      setSaveStatus("저장 중...");
+      await updateFields(id, patch);
+      Object.assign(row, patch);
+      pick.rowId = null;
+      $("pickOverlay").hidden = true;
+      freshId = id;
+      render();
+      setSaveStatus("저장됨 ✓", "ok");
+    } catch (e) {
+      console.error(e);
+      setSaveStatus("저장 실패 — 다시 시도해주세요", "err");
+      alert("저장 중 오류가 발생했습니다.\n" + (e.message || e));
+    }
+  }
+
+  $("searchAddBtn").addEventListener("click", async () => {
+    const btn = $("searchAddBtn");
+    btn.disabled = true;
+    try {
+      const row = await addBlankRow();   // 1) 행 먼저 생성
+      openPick(row.id);                  // 2) 팝업 열기
+    } catch (e) {
+      console.error(e);
+      alert("행 추가 중 오류가 발생했습니다.\n" + (e.message || e));
+    } finally {
+      btn.disabled = false;
+    }
+  });
+  $("pickQuery").addEventListener("input", renderPick);
+  $("pickQuery").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.isComposing) {   // Enter: 첫 번째 결과 선택
+      const first = $("pickList").querySelector(".pick-item");
+      if (first) { e.preventDefault(); first.click(); }
+    }
+  });
+  document.querySelectorAll(".seg button").forEach((b) => b.addEventListener("click", () => {
+    pick.field = b.dataset.field;
+    document.querySelectorAll(".seg button").forEach((x) => x.classList.toggle("active", x === b));
+    $("pickQuery").placeholder = "검색어를 입력하세요";
+    renderPick();
+    $("pickQuery").focus();
+  }));
+  $("pickList").addEventListener("click", (e) => {
+    const item = e.target.closest(".pick-item");
+    if (item) choosePick(pick.tasks[+item.dataset.i]);
+  });
+  $("pickClose").addEventListener("click", closePick);
+  $("pickOverlay").addEventListener("click", (e) => { if (e.target.id === "pickOverlay") closePick(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("pickOverlay").hidden) closePick(); });
 
   $("btnHealth").addEventListener("click", async () => {
     const btn = $("btnHealth");
