@@ -359,11 +359,6 @@
   .intro-desc a:hover { text-decoration: underline; text-underline-offset: 3px; }
   .intro-desc a::after { content: " ↗"; font-size: 11px; opacity: .7; }
   .intro-scope { color: var(--ink-muted-48); font-size: 13px; }
-  .intro-stats { margin-top: 6px !important; font-size: 13px; color: var(--ink-muted-48); }
-  .intro-stats b { font-family: var(--font-display); font-size: 15px; font-weight: 700; color: var(--ink); margin: 0 1px; }
-  .intro-stats .st-done b { color: #1d1d1f; }
-  .intro-stats .st-progress b { color: var(--primary); }
-  .intro-stats .st-closed b { color: #b5482d; }
   @media (max-width: 640px) { .intro { padding: 12px 16px 0; } }
 
   /* 카테고리: 드롭다운 칩 스타일 제거 (일반 입력칸과 동일) */
@@ -456,7 +451,6 @@
 
 <section class="intro">
   <p class="intro-desc"><a href="https://lguplusenterprise.com/" target="_blank" rel="noopener noreferrer">Enterprise 블로그</a>에 게시되는 콘텐츠 이관 목록 관리 기능 <span class="intro-scope">(INSIGHT, SOLUTION, CHECKLIST, GEO콘텐츠 포함, CASE STUDY, AX Trend 제외)</span></p>
-  <p class="intro-stats" id="introStats">총 <b>0</b>건 / 완료 <b>0</b>건 / 진행 <b>0</b>건 / 취소 <b>0</b>건</p>
 </section>
 
 <div class="toolbar">
@@ -863,14 +857,6 @@
   }
   function autosize(t) { t.style.height = "auto"; t.style.height = t.scrollHeight + 2 + "px"; }
 
-  /* 상단 진행현황별 건수 (전체 목록 기준 — 검색·필터와 무관) */
-  function renderStats() {
-    const n = (s) => rows.filter((r) => r.status === s).length;
-    $("introStats").innerHTML =
-      `총 <b>${rows.length}</b>건 / <span class="st-done">완료 <b>${n("완료")}</b>건</span> / ` +
-      `<span class="st-progress">진행 <b>${n("진행")}</b>건</span> / <span class="st-closed">취소 <b>${n("취소")}</b>건</span>`;
-  }
-
   /* 상단 진행상태 탭 (건수 포함) */
   function renderStatusTabs() {
     const base = baseFiltered();
@@ -907,7 +893,6 @@
     $("countLabel").textContent = `${list.length} / ${rows.length}건`;
     renderStatusTabs();
     renderSortHeader();
-    renderStats();
 
     if (list.length === 0) {
       tbody.innerHTML = `<tr><td colspan="${COLUMNS.length + 1}" class="empty">${
@@ -1032,7 +1017,6 @@
         Object.values(STATUS_PILL).concat("st-none").forEach((c) => sel.classList.remove(c));
         sel.classList.add(STATUS_PILL[row.status] || "st-none");
         renderStatusTabs();
-        renderStats();
       });
       return;
     }
