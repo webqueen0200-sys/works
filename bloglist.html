@@ -349,6 +349,80 @@
 
   /* 선택안함 상태 드롭다운 */
   tbody select.ed.placeholder { color: var(--ink-muted-48); }
+  .toolbar { justify-content: space-between; }
+
+  /* 상단 안내 + 진행현황 집계 */
+  .intro { padding: 16px 24px 0; background: var(--canvas); }
+  .intro p { margin: 0; }
+  .intro-desc { font-size: 14px; letter-spacing: -0.224px; color: var(--ink-muted-80); }
+  .intro-desc a { color: var(--primary); text-decoration: none; font-weight: 600; }
+  .intro-desc a:hover { text-decoration: underline; text-underline-offset: 3px; }
+  .intro-desc a::after { content: " ↗"; font-size: 11px; opacity: .7; }
+  .intro-scope { color: var(--ink-muted-48); font-size: 13px; }
+  .intro-stats { margin-top: 6px !important; font-size: 13px; color: var(--ink-muted-48); }
+  .intro-stats b { font-family: var(--font-display); font-size: 15px; font-weight: 700; color: var(--ink); margin: 0 1px; }
+  .intro-stats .st-done b { color: #1d1d1f; }
+  .intro-stats .st-progress b { color: var(--primary); }
+  .intro-stats .st-closed b { color: #b5482d; }
+  @media (max-width: 640px) { .intro { padding: 12px 16px 0; } }
+
+  /* 카테고리: 드롭다운 칩 스타일 제거 (일반 입력칸과 동일) */
+  tbody select.ed.plain {
+    height: auto; margin: 0; padding: 5px; border-radius: var(--r-xs);
+    background-color: transparent; background-image: none; line-height: 1.4;
+  }
+  tbody select.ed.plain:hover { background-color: transparent; border-color: var(--hairline); }
+  tbody select.ed.plain:focus { background-color: var(--canvas); border-color: var(--primary-focus); }
+
+  /* 진행상태 — 업무관리 styles.css 의 진행현황별 행 배경과 동일 */
+  tbody tr.row-progress > td { background: #e3f2fd; }
+  tbody tr.row-progress:hover > td { background: #d3e9fa; }
+  tbody tr.row-done > td,
+  tbody tr.row-closed > td { background: #ebebed; }
+  tbody tr.row-done:hover > td,
+  tbody tr.row-closed:hover > td { background: #e1e1e4; }
+  tbody tr.row-done .ed, tbody tr.row-done .auto-no, tbody tr.row-done .url-link,
+  tbody tr.row-closed .ed, tbody tr.row-closed .auto-no, tbody tr.row-closed .url-link { color: var(--ink-muted-48); }
+  tbody tr.row-closed textarea.ed[data-key="title"] { text-decoration: line-through; }
+  tbody tr.selected > td { background: #dceafa; }
+
+  /* 진행상태 드롭다운 = 상태 알약 (styles.css .pill 계열 색) */
+  tbody select.ed.status-sel { font-size: 12px; font-weight: 600; margin: 3px 0; }
+  .st-none     { color: var(--ink-muted-48) !important; }
+  .st-recv     { color: var(--ink-muted-80) !important; }
+  .st-progress { color: var(--primary) !important; }
+  .st-done     { color: #1d1d1f !important; }
+  .st-closed   { color: #b5482d !important; }
+  tbody select.ed.status-sel.st-none     { background-color: var(--canvas-parchment); }
+  tbody select.ed.status-sel.st-recv     { background-color: #e8e8ed; }
+  tbody select.ed.status-sel.st-progress { background-color: rgba(0, 102, 204, 0.12); }
+  tbody select.ed.status-sel.st-done     { background-color: #dcdce1; }
+  tbody select.ed.status-sel.st-closed   { background-color: rgba(181, 72, 45, 0.1); }
+  tbody tr.row-done select.ed.status-sel.st-done { color: #1d1d1f !important; }
+
+  /* 상단 진행상태 탭 */
+  .status-tabs { display: inline-flex; gap: 2px; padding: 3px; border-radius: var(--r-pill); background: var(--canvas-parchment); }
+  .status-tabs button {
+    display: inline-flex; align-items: center; gap: 6px; border: none; background: transparent;
+    padding: 7px 14px; border-radius: var(--r-pill); font-size: 13px; font-weight: 400;
+    letter-spacing: -0.224px; color: var(--ink-muted-80) !important; cursor: pointer; white-space: nowrap;
+  }
+  .status-tabs button:hover { background: rgba(0, 0, 0, 0.04); }
+  .status-tabs button:active { transform: scale(0.95); }
+  .status-tabs button.active { background: var(--canvas); color: var(--primary) !important; font-weight: 600; box-shadow: 0 0 0 1px var(--hairline); }
+  .status-tabs .n { font-family: var(--font-mono); font-size: 11px; color: var(--ink-muted-48); }
+  .status-tabs button.active .n { color: var(--primary); }
+  .status-tabs button::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; display: none; }
+  .status-tabs button.st-recv::before { display: inline-block; background: #9a9aa0; }
+  .status-tabs button.st-progress::before { display: inline-block; background: var(--primary); }
+  .status-tabs button.st-done::before { display: inline-block; background: #1d1d1f; }
+  .status-tabs button.st-closed::before { display: inline-block; background: #b5482d; }
+
+  /* 정렬 가능한 행 타이틀 (styles.css 와 동일) */
+  #theadCols th.sortable { cursor: pointer; user-select: none; }
+  #theadCols th.sortable:hover { background: #e3e3e6; color: var(--ink); }
+  #theadCols th.sorted { color: var(--primary); }
+  .sort-ind { font-size: 10px; }
 
   /* 글자 수 표시 (입력 중일 때만) */
   .len-hint { display: none; text-align: right; font-family: var(--font-mono); font-size: 10px; color: var(--ink-muted-48); padding: 0 5px 2px; }
@@ -380,7 +454,15 @@
   </div>
 </header>
 
+<section class="intro">
+  <p class="intro-desc"><a href="https://lguplusenterprise.com/" target="_blank" rel="noopener noreferrer">Enterprise 블로그</a>에 게시되는 콘텐츠 이관 목록 관리 기능 <span class="intro-scope">(INSIGHT, SOLUTION, CHECKLIST, GEO콘텐츠 포함, CASE STUDY, AX Trend 제외)</span></p>
+  <p class="intro-stats" id="introStats">총 <b>0</b>건 / 완료 <b>0</b>건 / 진행 <b>0</b>건 / 취소 <b>0</b>건</p>
+</section>
+
 <div class="toolbar">
+  <div class="toolbar-left">
+    <div class="status-tabs" id="statusTabs" role="tablist" aria-label="진행상태별 보기"></div>
+  </div>
   <div class="toolbar-right">
     <div class="date-range" id="dateRange">
       <select id="dateField" class="pill-select" aria-label="기간 기준">
@@ -457,6 +539,10 @@
   }
 
   const CATEGORIES = ["", "INSIGHT", "SOLUTION", "CHECKLIST", "GEO콘텐츠", "CASE STUDY", "AX Trend", "해당 없음"];
+  const STATUSES = ["접수", "진행", "완료", "취소"];
+  /* 진행상태 → 행 스타일 (업무관리 styles.css 의 row-progress / row-done / row-closed 와 동일) */
+  const STATUS_ROW = { "진행": "row-progress", "완료": "row-done", "취소": "row-closed" };
+  const STATUS_PILL = { "접수": "st-recv", "진행": "st-progress", "완료": "st-done", "취소": "st-closed" };
 
   /* 컬럼 정의 */
   const COLUMNS = [
@@ -470,14 +556,15 @@
     { key: "stg_pub",       label: "STG퍼블",                   type: "ticket",   w: 90 },
     { key: "received_date", label: "접수",                      type: "date",     w: 96 },
     { key: "open_date",     label: "상용오픈",                  type: "date",     w: 96 },
-    { key: "note",          label: "비고",                      type: "textarea", w: 260, max: 1000, placeholder: "의견 남기기" },
+    { key: "status",        label: "진행상태",                  type: "status",   w: 76, options: STATUSES },
+    { key: "note",         label: "비고",                      type: "textarea", w: 260, max: 1000, placeholder: "의견 남기기" },
   ];
   const GROUPS = [
     { label: "관리", span: 2 },        // 선택, no
     { label: "게시물", span: 3 },      // 제목, URL, 카테고리
     { label: "상품", span: 2 },        // 관련 상품, 키워드
-    { label: "STG (RMS)", span: 2 },   // STG썸네일, STG퍼블
-    { label: "일정", span: 2 },        // 접수, 상용오픈
+    { label: "티켓번호", span: 2 },    // STG썸네일, STG퍼블
+    { label: "일정", span: 3 },        // 접수, 상용오픈, 진행상태
     { label: "의견", span: 1 },
   ];
   const DATA_KEYS = COLUMNS.filter((c) => c.type !== "auto").map((c) => c.key);
@@ -491,6 +578,9 @@
   let dateFrom = "";
   let dateTo = "";
   let freshId = null;
+  let statusFilter = "";            // "" = 전체
+  let sortKey = "";                 // "" = 기본(최신 등록순)
+  let sortDir = 1;                  // 1 오름차순 / -1 내림차순
   const editingUrl = new Set();   // URL 을 입력칸으로 보여줄 행
 
   const $ = (id) => document.getElementById(id);
@@ -502,7 +592,7 @@
     `<th colspan="${g.span}"${i === 0 ? ' class="sticky-col"' : ""}>${g.label}</th>`).join("");
   $("theadCols").innerHTML =
     `<th class="sticky-col" style="width:36px;text-align:center"><input type="checkbox" id="checkAll" aria-label="전체 선택" /></th>` +
-    COLUMNS.map((c) => `<th style="min-width:${c.w}px">${c.label}</th>`).join("");
+    COLUMNS.map((c) => `<th class="sortable" data-sort="${c.key}" style="min-width:${c.w}px" title="클릭하여 정렬">${c.label}<span class="sort-ind"></span></th>`).join("");
   $("searchField").innerHTML = `<option value="all">전체</option>` +
     SEARCH_COLS.map((c) => `<option value="${c.key}">${c.key === "category" ? "카테고리" : c.label}</option>`).join("");
 
@@ -694,10 +784,16 @@
       }
       case "textarea":
         return `<textarea ${common} ${w}${ml} rows="1" placeholder="${esc(col.placeholder || "")}">${val}</textarea>`;
+      case "status": {
+        const cur = row[col.key] || "";
+        const opts = ["", ...col.options, ...(cur && !col.options.includes(cur) ? [cur] : [])];
+        return `<select ${common.replace('class="ed"', `class="ed status-sel ${STATUS_PILL[cur] || "st-none"}"`)} style="width:${col.w - 8}px">${opts.map((o) =>
+          `<option value="${esc(o)}"${o === cur ? " selected" : ""}>${o ? esc(o) : "-"}</option>`).join("")}</select>`;
+      }
       case "select": {
         const cur = row[col.key] || "";
         const opts = cur && !col.options.includes(cur) ? [...col.options, cur] : col.options;
-        return `<select ${common} ${w}${cur ? "" : ' data-empty="1"'}>${opts.map((o) =>
+        return `<select ${common.replace('class="ed"', 'class="ed plain"')} ${w}>${opts.map((o) =>
           `<option value="${esc(o)}"${o === cur ? " selected" : ""}>${o ? esc(o) : "선택안함"}</option>`).join("")}</select>`;
       }
       case "date":
@@ -716,7 +812,37 @@
     return html + (editable ? lenHint(col, row[col.key]) : "");
   }
 
+  /* 진행상태 필터 + 정렬까지 적용한 화면 목록 */
   function filtered() {
+    const list = statusFilter
+      ? baseFiltered().filter((r) => (statusFilter === "-" ? !r.status : r.status === statusFilter))
+      : baseFiltered();
+    return sortRows(list);
+  }
+  function sortValue(r, key) {
+    if (key === "no") return autoNo(r.id);
+    const v = r[key];
+    if (v == null || v === "") return null;
+    if (key === "status") return STATUSES.indexOf(v) >= 0 ? STATUSES.indexOf(v) : 99;
+    if (key === "category") return CATEGORIES.indexOf(v) >= 0 ? CATEGORIES.indexOf(v) : 99;
+    if (key === "stg_thumb" || key === "stg_pub") return +v;
+    if (key === "url") return urlSlug(v).toLowerCase();
+    if (key === "received_date" || key === "open_date") return normalizeDate(v) || String(v);
+    return String(v).toLowerCase();
+  }
+  function sortRows(list) {
+    if (!sortKey) return list;   // 기본: 최신 등록순
+    return [...list].sort((a, b) => {
+      const x = sortValue(a, sortKey), y = sortValue(b, sortKey);
+      if (x === null && y === null) return 0;
+      if (x === null) return 1;            // 빈 값은 항상 맨 아래
+      if (y === null) return -1;
+      const c = typeof x === "number" && typeof y === "number" ? x - y : String(x).localeCompare(String(y), "ko");
+      return c * sortDir;
+    });
+  }
+  /* 검색·기간 조건만 적용 (진행상태 필터 건수 계산용) */
+  function baseFiltered() {
     const q = query.trim().toLowerCase();
     let from = dateFrom, to = dateTo;
     if (from && to && from > to) [from, to] = [to, from];
@@ -736,18 +862,59 @@
     });
   }
   function autosize(t) { t.style.height = "auto"; t.style.height = t.scrollHeight + 2 + "px"; }
+
+  /* 상단 진행현황별 건수 (전체 목록 기준 — 검색·필터와 무관) */
+  function renderStats() {
+    const n = (s) => rows.filter((r) => r.status === s).length;
+    $("introStats").innerHTML =
+      `총 <b>${rows.length}</b>건 / <span class="st-done">완료 <b>${n("완료")}</b>건</span> / ` +
+      `<span class="st-progress">진행 <b>${n("진행")}</b>건</span> / <span class="st-closed">취소 <b>${n("취소")}</b>건</span>`;
+  }
+
+  /* 상단 진행상태 탭 (건수 포함) */
+  function renderStatusTabs() {
+    const base = baseFiltered();
+    const cnt = (s) => base.filter((r) => (s === "-" ? !r.status : r.status === s)).length;
+    const tabs = [["", "전체", base.length], ...STATUSES.map((s) => [s, s, cnt(s)])];
+    const none = cnt("-");
+    if (none) tabs.push(["-", "미지정", none]);
+    $("statusTabs").innerHTML = tabs.map(([v, label, n]) =>
+      `<button type="button" role="tab" data-status="${esc(v)}" class="${v === statusFilter ? "active" : ""} ${v ? STATUS_PILL[v] || "" : ""}">${esc(label)}<span class="n">${n}</span></button>`).join("");
+  }
+  /* 정렬 표시 */
+  function renderSortHeader() {
+    document.querySelectorAll("#theadCols th.sortable").forEach((th) => {
+      const on = th.dataset.sort === sortKey;
+      th.classList.toggle("sorted", on);
+      th.querySelector(".sort-ind").textContent = on ? (sortDir === 1 ? " ▲" : " ▼") : "";
+      th.setAttribute("aria-sort", on ? (sortDir === 1 ? "ascending" : "descending") : "none");
+    });
+  }
+  /* 행 타이틀 클릭: 오름차순 → 내림차순 → 기본(최신 등록순) */
+  $("theadCols").addEventListener("click", (e) => {
+    const th = e.target.closest("th.sortable");
+    if (!th) return;
+    const k = th.dataset.sort;
+    if (sortKey !== k) { sortKey = k; sortDir = 1; }
+    else if (sortDir === 1) sortDir = -1;
+    else { sortKey = ""; sortDir = 1; }
+    render();
+  });
   function markSelectEmpty(sel) { sel.classList.toggle("placeholder", !sel.value); }
 
   function render() {
     const list = filtered();
     $("countLabel").textContent = `${list.length} / ${rows.length}건`;
+    renderStatusTabs();
+    renderSortHeader();
+    renderStats();
 
     if (list.length === 0) {
       tbody.innerHTML = `<tr><td colspan="${COLUMNS.length + 1}" class="empty">${
-        (query || dateFrom || dateTo) ? "조건에 맞는 항목이 없습니다." : "등록된 게시물이 없습니다. ‘+ 행 추가’ 또는 ‘CSV 업로드’로 시작하세요."}</td></tr>`;
+        (query || dateFrom || dateTo || statusFilter) ? "조건에 맞는 항목이 없습니다." : "등록된 게시물이 없습니다. ‘+ 행 추가’ 또는 ‘CSV 업로드’로 시작하세요."}</td></tr>`;
     } else {
       tbody.innerHTML = list.map((r) => {
-        const cls = [selected.has(r.id) ? "selected" : "", r.id === freshId ? "fresh" : ""].join(" ").trim();
+        const cls = [STATUS_ROW[r.status] || "", selected.has(r.id) ? "selected" : "", r.id === freshId ? "fresh" : ""].join(" ").trim();
         return `<tr data-id="${esc(r.id)}" class="${cls}">
           <td class="sticky-col"><input type="checkbox" class="row-check" ${selected.has(r.id) ? "checked" : ""} aria-label="행 선택" /></td>
           ${COLUMNS.map((c) => `<td data-col="${c.key}">${cellHTML(c, r)}</td>`).join("")}
@@ -853,7 +1020,22 @@
       syncSelectionUI();
       return;
     }
-    if (e.target.matches("select.ed")) { markSelectEmpty(e.target); saveCell(e.target); return; }
+    if (e.target.matches("select.ed")) {
+      const sel = e.target;
+      markSelectEmpty(sel);
+      saveCell(sel).then(() => {
+        if (sel.dataset.key !== "status") return;
+        const tr = sel.closest("tr"), row = rows.find((r) => r.id === tr.dataset.id);
+        if (!row) return;
+        Object.values(STATUS_ROW).forEach((c) => tr.classList.remove(c));
+        if (STATUS_ROW[row.status]) tr.classList.add(STATUS_ROW[row.status]);
+        Object.values(STATUS_PILL).concat("st-none").forEach((c) => sel.classList.remove(c));
+        sel.classList.add(STATUS_PILL[row.status] || "st-none");
+        renderStatusTabs();
+        renderStats();
+      });
+      return;
+    }
     if (e.target.classList.contains("cal-native")) {
       const text = e.target.parentElement.querySelector("input.ed");
       if (e.target.value) { text.value = e.target.value.replace(/-/g, "/"); saveCell(text); }
@@ -910,6 +1092,12 @@
 
   /* ---------- 툴바 ---------- */
   $("searchInput").addEventListener("input", (e) => { query = e.target.value; render(); });
+  $("statusTabs").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-status]");
+    if (!b) return;
+    statusFilter = b.dataset.status;
+    render();
+  });
   $("searchField").addEventListener("change", (e) => { searchField = e.target.value; render(); });
   $("dateField").addEventListener("change", (e) => { dateField = e.target.value; render(); });
 
@@ -967,6 +1155,7 @@
 
   function clearFilters() {
     query = ""; $("searchInput").value = "";
+    statusFilter = "";
     $("dateFrom").value = ""; $("dateTo").value = ""; dateFrom = ""; dateTo = "";
     $("dateRange").classList.remove("active");
   }
@@ -975,7 +1164,7 @@
     const btn = $("addBtn");
     btn.disabled = true;
     try {
-      const row = await insertBlank();
+      const row = await insertBlank({ status: "접수" });
       rows.unshift(row);            // 새 행은 항상 맨 위
       clearFilters();               // 새 행이 바로 보이도록 검색·기간 조건 해제
       freshId = row.id;
@@ -1054,7 +1243,7 @@
   const HEADER_MAP = {};
   COLUMNS.forEach((c) => { if (c.type !== "auto") HEADER_MAP[normH(c.label)] = c.key; });
   Object.assign(HEADER_MAP, { "카테고리": "category", "블로그카테고리": "category", "핵심키워드": "keyword",
-    "접수일": "received_date", "상용오픈일": "open_date", "오픈일": "open_date" });
+    "접수일": "received_date", "상용오픈일": "open_date", "오픈일": "open_date", "상태": "status", "진행현황": "status" });
 
   let pendingImport = null;
   $("importBtn").addEventListener("click", () => $("csvFile").click());
@@ -1076,7 +1265,7 @@
     const hi = data.slice(0, 10).findIndex((r) => r.some((h) => normH(h) === "제목"));
     if (hi < 0) { alert("‘제목’ 컬럼을 찾지 못했습니다.\nCSV 내보내기로 받은 파일 형식을 참고해주세요."); return; }
     const map = data[hi].map((h) => HEADER_MAP[normH(h)] || null);
-    let badCat = 0, badDate = 0;
+    let badCat = 0, badDate = 0, badStatus = 0;
     const list = data.slice(hi + 1).map((r) => {
       const item = {};
       map.forEach((k, i) => { if (k) item[k] = String(r[i] ?? "").trim(); });
@@ -1085,9 +1274,9 @@
         let v = item[c.key] || "";
         if (c.type === "ticket") v = v.replace(/^.*\/issues\//, "").replace(/\D/g, "");
         if (c.type === "date" && v) { const n = normalizeDate(v); if (n === null) badDate++; v = n || ""; }
-        if (c.type === "select" && v && !c.options.includes(v)) {
+        if ((c.type === "select" || c.type === "status") && v && !c.options.includes(v)) {
           const hit = c.options.find((o) => normH(o) === normH(v));
-          if (hit) v = hit; else { badCat++; v = ""; }
+          if (hit) v = hit; else { if (c.type === "select") badCat++; else badStatus++; v = ""; }
         }
         if (c.max) v = v.slice(0, c.max);
         item[c.key] = v || null;
@@ -1098,6 +1287,7 @@
     pendingImport = list;
     $("importMsg").innerHTML = `CSV에서 <b>${list.length}건</b>을 읽었습니다. 현재 ${rows.length}건에 어떻게 반영할까요?` +
       (badCat ? `<br><span class="warn">목록에 없는 카테고리 ${badCat}건은 ‘선택안함’으로 처리됩니다.</span>` : "") +
+      (badStatus ? `<br><span class="warn">진행상태가 접수·진행·완료·취소가 아닌 ${badStatus}건은 비워둡니다.</span>` : "") +
       (badDate ? `<br><span class="warn">날짜 형식이 맞지 않는 ${badDate}건은 비워둡니다.</span>` : "");
     $("importOverlay").hidden = false;
   }
