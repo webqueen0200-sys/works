@@ -385,6 +385,7 @@ function bindGlobalControls() {
   document.getElementById("btnCsvTemplate").onclick = exportCsvTemplate;
   document.getElementById("btnCategorySettings").onclick = openCategorySettings;
   document.getElementById("btnHealth").onclick = checkConnection;
+  window.addEventListener("resize", () => requestAnimationFrame(applyFreezeOffsets));
   const saveEl = document.getElementById("saveStatus");
   if (saveEl) saveEl.onclick = () => {
     if (!saveState.lastError) return;
@@ -479,6 +480,53 @@ function groupLabel(group) {
     meta: "관리", classify: "업무 분류", content: "업무 내용", requester: "요청",
     assignee: "업무 담당자", schedule: "일정", hours: "업무투입", note: "비고"
   })[group] || group;
+}
+
+// ---------------- 틀고정 (업무명까지 왼쪽 고정) ----------------
+
+// 이 열까지 왼쪽에 고정하고, 오른쪽은 가로 스크롤합니다.
+const FREEZE_UNTIL_KEY = "title";
+
+function freezeIndex() {
+  const i = COLUMNS.findIndex(c => c.key === FREEZE_UNTIL_KEY);
+  return i === -1 ? -1 : i;
+}
+
+// 셀에 고정 표시만 해둡니다. 실제 left 값은 렌더 후 실측해서 넣습니다.
+function markFrozen(cell, colIdx) {
+  const f = freezeIndex();
+  if (f < 0 || colIdx > f) return;
+  cell.classList.add("sticky-col");
+  cell.dataset.freezeIdx = String(colIdx);
+  if (colIdx === f) cell.classList.add("sticky-edge");
+}
+
+// 열 너비는 내용에 따라 달라지므로, 선언값이 아닌 실제 렌더된 너비로 누적 위치를 계산합니다.
+function applyFreezeOffsets() {
+  const f = freezeIndex();
+  if (f < 0) return;
+  const headRow = document.getElementById("theadCols");
+  if (!headRow || !headRow.children.length) return;
+
+  const lefts = [];
+  let acc = 0;
+  for (let i = 0; i <= f && i < headRow.children.length; i++) {
+    lefts[i] = acc;
+    acc += headRow.children[i].getBoundingClientRect().width;
+  }
+
+  document.querySelectorAll("#sheetTable .sticky-col").forEach(cell => {
+    const idx = Number(cell.dataset.freezeIdx);
+    if (!Number.isNaN(idx) && lefts[idx] !== undefined) {
+      cell.style.left = lefts[idx] + "px";
+    }
+  });
+  // 그룹 헤더는 자신이 덮는 첫 열의 위치에 맞춥니다.
+  document.querySelectorAll("#theadGroup th[data-freeze-start]").forEach(th => {
+    const start = Number(th.dataset.freezeStart);
+    th.classList.add("sticky-col");
+    if (lefts[start] !== undefined) th.style.left = lefts[start] + "px";
+  });
 }
 
 // ---------------- 진행현황 필터 ----------------
@@ -602,16 +650,28 @@ function renderSheet() {
   theadGroup.innerHTML = ""; theadCols.innerHTML = ""; tbody.innerHTML = "";
 
   // grouped header row
+  // 틀고정 경계(업무명)에 걸친 그룹은 두 칸으로 나눠야 고정/스크롤이 어긋나지 않습니다.
+  const fIdx = freezeIndex();
   let i = 0;
   while (i < COLUMNS.length) {
     const g = COLUMNS[i].group;
     let span = 0;
     while (i + span < COLUMNS.length && COLUMNS[i + span].group === g) span++;
-    const th = document.createElement("th");
-    th.colSpan = span;
-    th.textContent = groupLabel(g);
-    th.className = "group-" + g;
-    theadGroup.appendChild(th);
+
+    const crosses = i <= fIdx && i + span - 1 > fIdx;
+    const parts = crosses
+      ? [{ start: i, span: fIdx - i + 1, label: groupLabel(g) },
+         { start: fIdx + 1, span: i + span - fIdx - 1, label: "" }]
+      : [{ start: i, span, label: groupLabel(g) }];
+
+    parts.forEach(part => {
+      const th = document.createElement("th");
+      th.colSpan = part.span;
+      th.textContent = part.label;
+      th.className = "group-" + g;
+      if (part.start + part.span - 1 <= fIdx) th.dataset.freezeStart = String(part.start);
+      theadGroup.appendChild(th);
+    });
     i += span;
   }
   const actionsTh = document.createElement("th");
@@ -626,6 +686,7 @@ function renderSheet() {
     th.style.minWidth = col.width + "px";
     const arrow = state.sortKey === col.key ? (state.sortDir === "asc" ? " ▲" : " ▼") : "";
     th.textContent = col.label + arrow;
+    markFrozen(th, COLUMNS.indexOf(col));
     if (state.sortKey === col.key) th.classList.add("sorted");
     th.title = "클릭하면 정렬됩니다";
     th.onclick = () => toggleSort(col.key);
@@ -651,8 +712,9 @@ function renderSheet() {
   rows.forEach(task => {
     const tr = document.createElement("tr");
     tr.className = rowStatusClass(task.status);
-    COLUMNS.forEach(col => {
+    COLUMNS.forEach((col, colIdx) => {
       const td = document.createElement("td");
+      markFrozen(td, colIdx);
       td.appendChild(renderCell(task, col));
       // Enter 이동을 위해 각 입력 요소에 위치 정보를 붙입니다.
       td.querySelectorAll("input, select, textarea").forEach(el => {
@@ -689,6 +751,8 @@ function renderSheet() {
   state.visibleRowIds = rows.map(t => t.id);
   buildStatusFilter();
   applyPendingFocus();
+  // 레이아웃이 끝난 뒤 실제 열 너비로 고정 위치 계산
+  requestAnimationFrame(applyFreezeOffsets);
 }
 
 function renderCell(task, col) {
