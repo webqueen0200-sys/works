@@ -549,7 +549,7 @@
     { key: "category",      label: "Enterprise 블로그 카테고리", type: "select",   w: 150, options: CATEGORIES },
     { key: "biz_category",  label: "기업 카테고리",             type: "select",   w: 140, options: BIZ_CATEGORIES, emptyLabel: "선택" },
     { key: "product",       label: "관련 상품",                 type: "text",     w: 130, max: 30 },
-    { key: "keyword",       label: "상품명+핵심키워드",          type: "textarea", w: 240, max: 500 },
+    { key: "keyword",       label: "URL Slug",                  type: "textarea", w: 240, max: 500, placeholder: "URL 입력 시 자동 입력" },
     { key: "stg_thumb",     label: "STG썸네일",                 type: "ticket",   w: 90 },
     { key: "stg_pub",       label: "STG퍼블",                   type: "ticket",   w: 90 },
     { key: "stg_review",    label: "STG검수",                   type: "url",      w: 180, max: 1000 },
@@ -562,7 +562,7 @@
   const GROUPS = [
     { label: "관리", span: 2 },        // 선택, no
     { label: "게시물", span: 5 },      // 블로그게시일, 제목, URL, 카테고리, 기업 카테고리
-    { label: "상품", span: 2 },        // 관련 상품, 키워드
+    { label: "상품 · Slug", span: 2 }, // 관련 상품, URL Slug
     { label: "티켓번호", span: 2 },    // STG썸네일, STG퍼블
     { label: "검수", span: 2 },        // STG검수, 상용검수
     { label: "일정", span: 3 },        // 접수, 상용오픈, 진행상태
@@ -739,6 +739,15 @@
     return /^\d+$/.test(n) ? TICKET_BASE + n : "";
   }
   /* URL → 마지막 경로 (예: https://site.com/sol-soho-m2minternet/ → sol-soho-m2minternet) */
+  /* URL Slug 자동 입력용: 도메인 뒤 경로의 마지막 부분 (경로가 없으면 빈 값)
+     예) https://lguplusenterprise.com/insight-alphakey-saas-ai-account-security/ → insight-alphakey-saas-ai-account-security */
+  function pathSlug(u) {
+    const s = String(u || "").trim().replace(/^[a-z][a-z0-9+.-]*:\/\//i, "").split(/[?#]/)[0];
+    const i = s.indexOf("/");
+    if (i < 0) return "";
+    const seg = s.slice(i).replace(/\/+$/, "").split("/").pop() || "";
+    try { return decodeURIComponent(seg); } catch (e) { return seg; }
+  }
   function urlSlug(u) {
     const s = String(u || "").trim().split(/[?#]/)[0].replace(/\/+$/, "");
     const seg = s.split("/").pop() || s;
@@ -994,6 +1003,19 @@
       await updateField(id, col.key, next);
       row[col.key] = next;
       if (col.type === "ticket") el.value = next || "";
+      // URL 이 바뀌면 URL Slug 자동 입력 (비어 있거나, 이전 URL 에서 자동으로 채운 값 그대로일 때만 — 직접 수정한 값은 유지)
+      if (col.key === "url") {
+        const cur = row.keyword || "";
+        if (!cur || cur === pathSlug(prev)) {
+          const slug = pathSlug(next).slice(0, 500) || null;
+          if (slug !== (row.keyword ?? null)) {
+            await updateField(id, "keyword", slug);
+            row.keyword = slug;
+            const ta = tr.querySelector('[data-key="keyword"]');
+            if (ta) { ta.value = slug || ""; autosize(ta); }
+          }
+        }
+      }
       el.classList.remove("saving"); el.classList.add("saved");
       setTimeout(() => el.classList.remove("saved"), 1200);
       setSaveStatus("저장됨 ✓", "ok");
@@ -1236,7 +1258,7 @@
   const normH = (h) => String(h || "").replace(/\s+/g, "").toLowerCase();
   const HEADER_MAP = {};
   COLUMNS.forEach((c) => { if (c.type !== "auto") HEADER_MAP[normH(c.label)] = c.key; });
-  Object.assign(HEADER_MAP, { "카테고리": "category", "기업카테고리": "biz_category", "블로그카테고리": "category", "핵심키워드": "keyword",
+  Object.assign(HEADER_MAP, { "카테고리": "category", "기업카테고리": "biz_category", "블로그카테고리": "category", "핵심키워드": "keyword", "상품명+핵심키워드": "keyword", "slug": "keyword", "urlslug": "keyword",
     "접수일": "received_date", "상용오픈일": "open_date", "오픈일": "open_date", "게시일": "blog_date", "블로그게시": "blog_date", "stg검수url": "stg_review", "상용검수url": "prod_review", "상태": "status", "진행현황": "status" });
 
   let pendingImport = null;
@@ -1275,6 +1297,7 @@
         if (c.max) v = v.slice(0, c.max);
         item[c.key] = v || null;
       });
+      if (!item.keyword && item.url) item.keyword = pathSlug(item.url).slice(0, 500) || null;   // URL Slug 자동 입력
       return item;
     }).filter((it) => DATA_KEYS.some((k) => it[k]));
     if (!list.length) { alert("가져올 행이 없습니다."); return; }
