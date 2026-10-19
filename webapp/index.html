@@ -27,6 +27,8 @@
     height: 2px; border-radius: 2px; background: #2997ff;
   }
   .global-nav a:focus-visible { outline: 2px solid #0071e3; outline-offset: -2px; }
+  .global-nav .ext { margin-left: 4px; font-size: 10px; opacity: 0.6; }
+  .global-nav a:hover .ext { opacity: 1; }
   @media (max-width: 640px) { .global-nav { padding: 0 8px; } }
 </style>
 </head>
@@ -86,12 +88,11 @@
     <div id="dashKpis" class="dash-kpis"></div>
     <div class="dash-metrics">
       <div id="dashStatusCard" class="summary-card"></div>
-      <div id="dashCategoryCard" class="summary-card"></div>
-      <div id="dashMMCard" class="summary-card"></div>
       <div id="dashRequesterCard" class="summary-card"></div>
+      <div id="dashAssigneeCard" class="summary-card"></div>
+      <div id="dashMMCard" class="summary-card"></div>
     </div>
     <div class="dash-lists">
-      <div id="dashAssigneeCard" class="summary-card"></div>
       <div id="dashUrgentCard" class="summary-card"></div>
       <div id="dashDueCard" class="summary-card"></div>
       <div id="dashNextWeekCard" class="summary-card"></div>

@@ -680,7 +680,7 @@ tbody input:focus, tbody select:focus, tbody textarea:focus {
 
 .dash-kpis {
   display: grid;
-  grid-template-columns: repeat(5, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 14px;
   margin-bottom: 20px;
 }
@@ -715,6 +715,10 @@ tbody input:focus, tbody select:focus, tbody textarea:focus {
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 16px;
   margin-bottom: 16px;
+}
+/* 담당자별 표는 열이 많아 넓게 */
+@media (min-width: 1080px) {
+  #dashAssigneeCard { grid-column: span 2; }
 }
 .dash-lists {
   display: flex;

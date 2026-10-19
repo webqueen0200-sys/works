@@ -1016,6 +1016,7 @@ function renderDashboard() {
   const total = tasks.length;
   const inProgress = tasks.filter(t => t.status === "진행").length;
   const done = tasks.filter(t => t.status === "완료").length;
+  const cancelled = tasks.filter(t => t.status === "취소").length;
   const overdue = tasks.filter(t => t.dueDate && t.dueDate < today && !["완료", "취소"].includes(t.status)).length;
 
   const mmTasks = tasks.filter(t => t.major !== "SI");
@@ -1032,6 +1033,7 @@ function renderDashboard() {
     { label: "전체 업무", value: `${total}건` },
     { label: "진행중", value: `${inProgress}건` },
     { label: "완료", value: `${done}건` },
+    { label: "취소", value: `${cancelled}건` },
     { label: "지연(마감 초과)", value: `${overdue}건`, warn: overdue > 0 },
     { label: "이번 달 투입 MM", value: `${mmTotal.toFixed(2)} / ${targetTotal.toFixed(2)}`, sub: `투입률 ${utilRate.toFixed(0)}%` }
   ];
@@ -1048,12 +1050,6 @@ function renderDashboard() {
   const maxStatus = Math.max(1, ...statusCounts);
   document.getElementById("dashStatusCard").innerHTML =
     `<h3>진행현황별 업무</h3>` + statuses.map((s, i) => barRow(s, statusCounts[i], maxStatus)).join("");
-
-  // 대분류별 현황
-  const majorCounts = MAJOR_CATEGORIES.map(m => tasks.filter(t => t.major === m).length);
-  const maxMajor = Math.max(1, ...majorCounts);
-  document.getElementById("dashCategoryCard").innerHTML =
-    `<h3>대분류별 업무</h3>` + MAJOR_CATEGORIES.map((m, i) => barRow(m, majorCounts[i], maxMajor)).join("");
 
   // 직무별 투입 MM (기준 대비 %)
   document.getElementById("dashMMCard").innerHTML =
