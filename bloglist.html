@@ -460,6 +460,7 @@
   <div class="toolbar-right">
     <div class="date-range" id="dateRange">
       <select id="dateField" class="pill-select" aria-label="기간 기준">
+        <option value="blog_date">블로그게시일</option>
         <option value="received_date">접수</option>
         <option value="open_date">상용오픈</option>
       </select>
@@ -533,6 +534,7 @@
   }
 
   const CATEGORIES = ["", "INSIGHT", "SOLUTION", "CHECKLIST", "GEO콘텐츠", "CASE STUDY", "AX Trend", "해당 없음"];
+  const BIZ_CATEGORIES = ["", "솔루션활용팁", "B2B 인사이트", "도입 체크리스트", "마케터 현장 리포트"];
   const STATUSES = ["접수", "진행", "완료", "취소"];
   /* 진행상태 → 행 스타일 (업무관리 styles.css 의 row-progress / row-done / row-closed 와 동일) */
   const STATUS_ROW = { "진행": "row-progress", "완료": "row-done", "취소": "row-closed" };
@@ -541,13 +543,17 @@
   /* 컬럼 정의 */
   const COLUMNS = [
     { key: "no",            label: "no",                        type: "auto",     w: 44 },
+    { key: "blog_date",     label: "블로그게시일",              type: "date",     w: 96 },
     { key: "title",         label: "제목",                      type: "textarea", w: 280, max: 200,  placeholder: "제목 입력" },
     { key: "url",           label: "URL",                       type: "url",      w: 220, max: 1000 },
     { key: "category",      label: "Enterprise 블로그 카테고리", type: "select",   w: 150, options: CATEGORIES },
+    { key: "biz_category",  label: "기업 카테고리",             type: "select",   w: 140, options: BIZ_CATEGORIES, emptyLabel: "선택" },
     { key: "product",       label: "관련 상품",                 type: "text",     w: 130, max: 30 },
     { key: "keyword",       label: "상품명+핵심키워드",          type: "textarea", w: 240, max: 500 },
     { key: "stg_thumb",     label: "STG썸네일",                 type: "ticket",   w: 90 },
     { key: "stg_pub",       label: "STG퍼블",                   type: "ticket",   w: 90 },
+    { key: "stg_review",    label: "STG검수",                   type: "url",      w: 180, max: 1000 },
+    { key: "prod_review",   label: "상용검수",                  type: "url",      w: 180, max: 1000 },
     { key: "received_date", label: "접수",                      type: "date",     w: 96 },
     { key: "open_date",     label: "상용오픈",                  type: "date",     w: 96 },
     { key: "status",        label: "진행상태",                  type: "status",   w: 76, options: STATUSES },
@@ -555,27 +561,29 @@
   ];
   const GROUPS = [
     { label: "관리", span: 2 },        // 선택, no
-    { label: "게시물", span: 3 },      // 제목, URL, 카테고리
+    { label: "게시물", span: 5 },      // 블로그게시일, 제목, URL, 카테고리, 기업 카테고리
     { label: "상품", span: 2 },        // 관련 상품, 키워드
     { label: "티켓번호", span: 2 },    // STG썸네일, STG퍼블
+    { label: "검수", span: 2 },        // STG검수, 상용검수
     { label: "일정", span: 3 },        // 접수, 상용오픈, 진행상태
     { label: "의견", span: 1 },
   ];
   const DATA_KEYS = COLUMNS.filter((c) => c.type !== "auto").map((c) => c.key);
+  const URL_KEYS = COLUMNS.filter((c) => c.type === "url").map((c) => c.key);
   const SEARCH_COLS = COLUMNS.filter((c) => c.type !== "auto");
 
   let rows = [];
   let selected = new Set();
   let query = "";
   let searchField = "all";
-  let dateField = "received_date";
+  let dateField = document.getElementById("dateField").value;   // 기간 기준 (드롭다운 첫 항목: 블로그게시일)
   let dateFrom = "";
   let dateTo = "";
   let freshId = null;
   let statusFilter = "";            // "" = 전체
   let sortKey = "";                 // "" = 기본(최신 등록순)
   let sortDir = 1;                  // 1 오름차순 / -1 내림차순
-  const editingUrl = new Set();   // URL 을 입력칸으로 보여줄 행
+  const editingUrl = new Set();   // URL 을 입력칸으로 보여줄 칸 ("행id:필드")
 
   const $ = (id) => document.getElementById(id);
   const tbody = $("tbody");
@@ -759,13 +767,13 @@
     switch (col.type) {
       case "url": {
         const v = row[col.key];
-        if (!v || editingUrl.has(row.id)) {
+        if (!v || editingUrl.has(row.id + ":" + col.key)) {
           return `<input ${common} ${w} type="text"${ml} placeholder="https://" value="${val}" />`;
         }
         const href = urlHref(v);
         return `<div class="url-cell" style="width:${col.w}px">
           <a class="url-link" href="${esc(href)}" target="_blank" rel="noopener noreferrer" title="${esc(href)}">${esc(urlSlug(v))}</a>
-          <button type="button" class="url-edit" title="URL 수정" aria-label="URL 수정">✎</button>
+          <button type="button" class="url-edit" data-edit="${col.key}" title="${esc(col.label)} 수정" aria-label="${esc(col.label)} 수정">✎</button>
         </div>`;
       }
       case "ticket": {
@@ -788,7 +796,7 @@
         const cur = row[col.key] || "";
         const opts = cur && !col.options.includes(cur) ? [...col.options, cur] : col.options;
         return `<select ${common.replace('class="ed"', 'class="ed plain"')} ${w}>${opts.map((o) =>
-          `<option value="${esc(o)}"${o === cur ? " selected" : ""}>${o ? esc(o) : "선택안함"}</option>`).join("")}</select>`;
+          `<option value="${esc(o)}"${o === cur ? " selected" : ""}>${o ? esc(o) : esc(col.emptyLabel || "선택안함")}</option>`).join("")}</select>`;
       }
       case "date":
         return `<div class="date-cell">
@@ -819,9 +827,11 @@
     if (v == null || v === "") return null;
     if (key === "status") return STATUSES.indexOf(v) >= 0 ? STATUSES.indexOf(v) : 99;
     if (key === "category") return CATEGORIES.indexOf(v) >= 0 ? CATEGORIES.indexOf(v) : 99;
+    if (key === "biz_category") return BIZ_CATEGORIES.indexOf(v) >= 0 ? BIZ_CATEGORIES.indexOf(v) : 99;
     if (key === "stg_thumb" || key === "stg_pub") return +v;
-    if (key === "url") return urlSlug(v).toLowerCase();
-    if (key === "received_date" || key === "open_date") return normalizeDate(v) || String(v);
+    const col = COLUMNS.find((c) => c.key === key);
+    if (col && col.type === "url") return urlSlug(v).toLowerCase();
+    if (col && col.type === "date") return normalizeDate(v) || String(v);
     return String(v).toLowerCase();
   }
   function sortRows(list) {
@@ -851,7 +861,7 @@
       if (!q) return true;
       return keys.some((k) => {
         const v = r[k] == null ? "" : String(r[k]).toLowerCase();
-        return v.includes(q) || (k === "url" && urlSlug(v).includes(q));
+        return v.includes(q) || (URL_KEYS.includes(k) && urlSlug(v).toLowerCase().includes(q));
       });
     });
   }
@@ -975,7 +985,7 @@
     }
     const next = toDbValue(col, el.value);
     const prev = row[col.key] ?? null;
-    const done = () => { if (col.type === "url") { editingUrl.delete(id); if (next) rerenderCell(tr, "url"); } };
+    const done = () => { if (col.type === "url") { editingUrl.delete(id + ":" + col.key); if (next) rerenderCell(tr, col.key); } };
     if (toInputValue(col, prev) === toInputValue(col, next)) { done(); return; }
 
     el.classList.remove("saved", "failed"); el.classList.add("saving");
@@ -1031,8 +1041,8 @@
     const ed = e.target.closest(".url-edit");
     if (ed) {
       const tr = ed.closest("tr");
-      editingUrl.add(tr.dataset.id);
-      const inp = rerenderCell(tr, "url").querySelector("input.ed");
+      editingUrl.add(tr.dataset.id + ":" + ed.dataset.edit);
+      const inp = rerenderCell(tr, ed.dataset.edit).querySelector("input.ed");
       inp.focus(); inp.select();
     }
   });
@@ -1154,7 +1164,7 @@
       freshId = row.id;
       render();
       document.querySelector(".table-scroll").scrollTo({ top: 0, left: 0 });
-      const first = tbody.querySelector(`tr[data-id="${CSS.escape(row.id)}"] .ed`);
+      const first = tbody.querySelector(`tr[data-id="${CSS.escape(row.id)}"] [data-key="title"]`);
       if (first) first.focus();
     } catch (e) {
       console.error(e);
@@ -1226,8 +1236,8 @@
   const normH = (h) => String(h || "").replace(/\s+/g, "").toLowerCase();
   const HEADER_MAP = {};
   COLUMNS.forEach((c) => { if (c.type !== "auto") HEADER_MAP[normH(c.label)] = c.key; });
-  Object.assign(HEADER_MAP, { "카테고리": "category", "블로그카테고리": "category", "핵심키워드": "keyword",
-    "접수일": "received_date", "상용오픈일": "open_date", "오픈일": "open_date", "상태": "status", "진행현황": "status" });
+  Object.assign(HEADER_MAP, { "카테고리": "category", "기업카테고리": "biz_category", "블로그카테고리": "category", "핵심키워드": "keyword",
+    "접수일": "received_date", "상용오픈일": "open_date", "오픈일": "open_date", "게시일": "blog_date", "블로그게시": "blog_date", "stg검수url": "stg_review", "상용검수url": "prod_review", "상태": "status", "진행현황": "status" });
 
   let pendingImport = null;
   $("importBtn").addEventListener("click", () => $("csvFile").click());
@@ -1270,7 +1280,7 @@
     if (!list.length) { alert("가져올 행이 없습니다."); return; }
     pendingImport = list;
     $("importMsg").innerHTML = `CSV에서 <b>${list.length}건</b>을 읽었습니다. 현재 ${rows.length}건에 어떻게 반영할까요?` +
-      (badCat ? `<br><span class="warn">목록에 없는 카테고리 ${badCat}건은 ‘선택안함’으로 처리됩니다.</span>` : "") +
+      (badCat ? `<br><span class="warn">목록에 없는 카테고리 값 ${badCat}건은 비워둡니다.</span>` : "") +
       (badStatus ? `<br><span class="warn">진행상태가 접수·진행·완료·취소가 아닌 ${badStatus}건은 비워둡니다.</span>` : "") +
       (badDate ? `<br><span class="warn">날짜 형식이 맞지 않는 ${badDate}건은 비워둡니다.</span>` : "");
     $("importOverlay").hidden = false;

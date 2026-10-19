@@ -13,8 +13,8 @@ const KEY = "bloglist";
 
 // bloglist.html 의 COLUMNS 와 동일한 필드 구성 + 최대 길이
 const FIELDS = {
-  title: 200, url: 1000, category: 0, product: 30, keyword: 500,
-  stg_thumb: 20, stg_pub: 20, received_date: 10, open_date: 10, note: 1000
+  blog_date: 10, title: 200, url: 1000, category: 0, biz_category: 0, product: 30, keyword: 500,
+  stg_thumb: 20, stg_pub: 20, stg_review: 1000, prod_review: 1000, received_date: 10, open_date: 10, status: 10, note: 1000
 };
 
 function clean(src) {
