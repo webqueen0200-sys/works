@@ -16,11 +16,21 @@ const state = {
 
 // ---------------- Storage layer (Vercel API 또는 localStorage) ----------------
 
-const LOCAL_MONTHS_KEY = "wm_months_v1";
-const LOCAL_ASSIGNEES_KEY = "wm_assignees_v1";
+// 데이터 구분(namespace): 페이지에서 window.APP_NS 를 지정하면(예: index_biz.html → "biz")
+// 서버 저장 공간과 브라우저 저장 키가 분리됩니다. 지정하지 않으면(index.html) 기존과 동일.
+const APP_NS = (typeof window !== "undefined" && window.APP_NS) ? String(window.APP_NS).trim() : "";
+function lsKey(key) { return APP_NS ? key.replace(/^wm_/, `wm_${APP_NS}_`) : key; }
+function nsPath(path) {
+  if (!APP_NS) return path;
+  return path + (path.includes("?") ? "&" : "?") + "ns=" + encodeURIComponent(APP_NS);
+}
+
+const LOCAL_MONTHS_KEY = lsKey("wm_months_v1");
+const LOCAL_ASSIGNEES_KEY = lsKey("wm_assignees_v1");
+const LOCAL_CATEGORIES_KEY = lsKey("wm_categories_v1");
 function localMonthsKey() { return LOCAL_MONTHS_KEY; }
-function localTasksKey(month) { return `wm_tasks_v1_${month}`; }
-function localSettingsKey(month) { return `wm_settings_v1_${month}`; }
+function localTasksKey(month) { return lsKey(`wm_tasks_v1_${month}`); }
+function localSettingsKey(month) { return lsKey(`wm_settings_v1_${month}`); }
 
 function uid() {
   return (crypto.randomUUID ? crypto.randomUUID() : "id_" + Date.now() + "_" + Math.random().toString(16).slice(2));
@@ -28,7 +38,7 @@ function uid() {
 
 async function apiFetchJson(path, options) {
   // cache: "no-store" — 저장 직후 새로고침 시 브라우저가 예전 응답을 재사용하지 않도록
-  const res = await fetch(API_BASE + path, { cache: "no-store", ...(options || {}) });
+  const res = await fetch(API_BASE + nsPath(path), { cache: "no-store", ...(options || {}) });
   if (!res.ok) {
     let detail = "";
     try {
@@ -223,7 +233,11 @@ function num(v) { const n = parseFloat(v); return isNaN(n) ? 0 : n; }
 // ---------------- 날짜 표기 (MM/DD 입력 ↔ ISO 저장) ----------------
 
 // 시트 연도: 월 탭은 연도를 갖지 않으므로 올해를 기준 연도로 사용합니다.
-function sheetYear() { return new Date().getFullYear(); }
+// 탭 이름에 연도가 있으면(예: "2025년 12월") 그 연도를 사용합니다.
+function sheetYear() {
+  const y = parseTabYM(state.currentMonth).year;
+  return y || new Date().getFullYear();
+}
 
 function isoToMMDD(iso) {
   if (!iso) return "";
@@ -302,14 +316,23 @@ function renderMonthTabs() {
 
     const btn = document.createElement("button");
     btn.className = "month-tab" + (m === state.currentMonth ? " active" : "");
-    btn.textContent = `업무현황_${m}`;
-    btn.onclick = () => switchMonth(m);
+    btn.textContent = m; // 입력한 탭명 그대로 표시
+    btn.title = "더블클릭하면 탭 이름을 바꿀 수 있습니다";
+    btn.onclick = () => { if (m !== state.currentMonth) switchMonth(m); };
+    btn.ondblclick = (e) => { e.preventDefault(); renameMonth(m); };
     tabWrap.appendChild(btn);
+
+    const editBtn = document.createElement("button");
+    editBtn.className = "month-tab-del month-tab-edit";
+    editBtn.textContent = "✎";
+    editBtn.title = "탭 이름 변경";
+    editBtn.onclick = (e) => { e.stopPropagation(); renameMonth(m); };
+    tabWrap.appendChild(editBtn);
 
     const delBtn = document.createElement("button");
     delBtn.className = "month-tab-del";
     delBtn.textContent = "✕";
-    delBtn.title = "이 월 시트 삭제";
+    delBtn.title = "이 탭 삭제";
     delBtn.onclick = (e) => { e.stopPropagation(); deleteMonth(m); };
     tabWrap.appendChild(delBtn);
 
@@ -318,7 +341,7 @@ function renderMonthTabs() {
 
   const addBtn = document.createElement("button");
   addBtn.className = "month-tab add";
-  addBtn.textContent = "+ 새 월 시트";
+  addBtn.textContent = "+ 새 탭";
   addBtn.onclick = addMonth;
   wrap.appendChild(addBtn);
 
@@ -333,15 +356,123 @@ function renderMonthTabs() {
   wrap.appendChild(assigneeBtn);
 }
 
+// ---------------- 탭 이름 (자유 입력, 10자 이내) ----------------
+
+const TAB_NAME_MAX = 10;
+
+// 입력값 검사: 통과하면 정리된 이름, 아니면 null (안내 메시지 표시)
+function validateTabName(raw, exceptName) {
+  const name = (raw || "").replace(/\s+/g, " ").trim();
+  if (!name) { alert("탭 이름을 입력해 주세요."); return null; }
+  if ([...name].length > TAB_NAME_MAX) {
+    alert(`탭 이름은 ${TAB_NAME_MAX}자 이내로 입력해 주세요. (현재 ${[...name].length}자)`);
+    return null;
+  }
+  if (/[<>]/.test(name)) { alert("탭 이름에 < > 기호는 사용할 수 없습니다."); return null; }
+  if (name !== exceptName && state.months.includes(name)) { alert("이미 같은 이름의 탭이 있습니다."); return null; }
+  return name;
+}
+
+function suggestTabName() {
+  const now = new Date();
+  return `${now.getFullYear()}년 ${now.getMonth() + 1}월`;
+}
+
 async function addMonth() {
-  const label = prompt("추가할 월을 입력하세요 (예: 10월)");
-  if (!label) return;
-  const clean = label.trim().endsWith("월") ? label.trim() : `${label.trim()}월`;
-  if (state.months.includes(clean)) { alert("이미 존재하는 월입니다."); return; }
+  let input = suggestTabName();
+  let clean = null;
+  while (clean === null) {
+    input = prompt(`추가할 탭 이름을 입력하세요 (${TAB_NAME_MAX}자 이내, 예: 2026년 10월)`, input);
+    if (input === null) return; // 취소
+    clean = validateTabName(input);
+  }
   state.months.push(clean);
   await saveMonths(state.months);
   renderMonthTabs();
   await switchMonth(clean);
+}
+
+// 저장 대기/진행 중인 업무 저장이 끝날 때까지 기다림 (이름 변경 전 데이터 유실 방지)
+async function waitForPendingSave() {
+  if (saveState.timer) { clearTimeout(saveState.timer); saveState.timer = null; }
+  if (saveState.pending && !saveState.inFlight) await flushSave();
+  while (saveState.inFlight || saveState.pending) {
+    await new Promise(r => setTimeout(r, 100));
+  }
+}
+
+// 업무 목록을 즉시(디바운스 없이) 저장
+async function saveTasksNow(month, tasks) {
+  try { localStorage.setItem(localTasksKey(month), JSON.stringify(tasks)); } catch (e) {}
+  if (!API_BASE) return;
+  await apiFetchJson("/api/tasks", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ month, tasks })
+  });
+}
+
+async function renameMonth(oldName) {
+  let input = oldName;
+  let clean = null;
+  while (clean === null) {
+    input = prompt(`새 탭 이름을 입력하세요 (${TAB_NAME_MAX}자 이내, 예: 2026년 10월)`, input);
+    if (input === null) return; // 취소
+    clean = validateTabName(input, oldName);
+  }
+  if (clean === oldName) return;
+
+  setSaveStatus("saving", "탭 이름 변경 중...");
+  try {
+    await waitForPendingSave();
+    // 탭 이름이 데이터 저장 키이므로, 기존 데이터를 새 이름으로 복사한 뒤 탭 목록을 바꿉니다.
+    const tasks = oldName === state.currentMonth ? state.tasks : await loadTasks(oldName);
+    const settings = await loadSettings(oldName);
+    await saveTasksNow(clean, tasks);
+    await saveSettings(clean, settings);
+
+    const idx = state.months.indexOf(oldName);
+    const nextMonths = state.months.slice();
+    nextMonths[idx] = clean;
+    await saveMonths(nextMonths);
+    state.months = nextMonths;
+
+    // 기존 이름의 로컬 사본 정리
+    try {
+      localStorage.removeItem(localTasksKey(oldName));
+      if (!API_BASE) localStorage.removeItem(localSettingsKey(oldName));
+    } catch (e) {}
+
+    if (state.currentMonth === oldName) state.currentMonth = clean;
+    const t = new Date();
+    setSaveStatus("ok", `저장됨 ${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")}`);
+  } catch (err) {
+    console.error("[탭 이름 변경 실패]", err);
+    saveState.lastError = (err && err.message) || String(err);
+    setSaveStatus("error", "저장 실패 (클릭)");
+    alert(`탭 이름을 바꾸지 못했습니다. 기존 '${oldName}' 탭과 데이터는 그대로 남아 있습니다.\n\n오류: ${saveState.lastError}`);
+    return;
+  }
+  renderAll();
+}
+
+// 탭 이름에서 연·월 추출 (예: "2026년 10월" → {year:2026, month:10}, "10월" → {year:null, month:10})
+function parseTabYM(name) {
+  const s = String(name || "");
+  const y = /(20\d{2})/.exec(s);
+  const m = /(?:^|[^\d])(\d{1,2})\s*월/.exec(s) || /(?:20\d{2})\D+(\d{1,2})(?!\d)/.exec(s);
+  const month = m ? parseInt(m[1], 10) : null;
+  return { year: y ? parseInt(y[1], 10) : null, month: month >= 1 && month <= 12 ? month : null };
+}
+
+// 특정 날짜가 속한 월의 탭 찾기: 연·월 일치 → 월만 일치(연도 없는 탭) 순
+function findTabForDate(d) {
+  const year = d.getFullYear(), month = d.getMonth() + 1;
+  const parsed = state.months.map(n => ({ n, ...parseTabYM(n) }));
+  const exact = parsed.find(p => p.month === month && p.year === year);
+  if (exact) return exact.n;
+  const monthOnly = parsed.find(p => p.month === month && p.year === null);
+  return monthOnly ? monthOnly.n : null;
 }
 
 async function deleteMonth(month) {
@@ -1090,7 +1221,7 @@ function renderDashboard() {
   const targetTotal = ROLES.reduce((a, r) => a + num(state.settings.targetMM[r]), 0);
   const utilRate = targetTotal ? (mmTotal / targetTotal * 100) : 0;
 
-  document.getElementById("dashTitle").textContent = `대시보드 · 업무현황_${state.currentMonth}`;
+  document.getElementById("dashTitle").textContent = `대시보드 · ${state.currentMonth}`; // 탭명 그대로 표시
 
   // KPI 카드
   const kpis = [
@@ -1402,20 +1533,20 @@ let categoryActiveMajor = null;
 
 async function loadCategories() {
   if (!API_BASE) {
-    const raw = localStorage.getItem("wm_categories_v1");
+    const raw = localStorage.getItem(LOCAL_CATEGORIES_KEY);
     return raw ? JSON.parse(raw) : null;
   }
   try {
     const data = await apiFetchJson("/api/categories");
     return data.categories || null;
   } catch (e) {
-    const raw = localStorage.getItem("wm_categories_v1");
+    const raw = localStorage.getItem(LOCAL_CATEGORIES_KEY);
     return raw ? JSON.parse(raw) : null;
   }
 }
 
 async function saveCategories(categories) {
-  try { localStorage.setItem("wm_categories_v1", JSON.stringify(categories)); } catch (e) { /* 무시 */ }
+  try { localStorage.setItem(LOCAL_CATEGORIES_KEY, JSON.stringify(categories)); } catch (e) { /* 무시 */ }
   if (!API_BASE) return;
   await apiFetchJson("/api/categories", {
     method: "PUT",
@@ -1743,7 +1874,7 @@ async function checkConnection() {
 
   // 2단계: 쓰기 테스트 (PUT — CORS 사전확인 OPTIONS 발생. 실제 데이터는 건드리지 않음)
   try {
-    const res = await fetch(`${API_BASE}/api/tasks`, {
+    const res = await fetch(API_BASE + nsPath("/api/tasks"), {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ month: "__연결테스트__", tasks: [] })
@@ -1816,10 +1947,9 @@ async function generateWeeklyReport() {
     const { start, end } = reportDateRange();
     const startStr = toDateStr(start), endStr = toDateStr(end);
 
-    // 정책: 작성일이 속한 월의 "업무현황_N월" 시트를 참고
-    const targetMonth = `${end.getMonth() + 1}월`;
-    const monthExists = state.months.includes(targetMonth);
-    const refMonth = monthExists ? targetMonth : state.currentMonth;
+    // 정책: 작성일이 속한 월의 탭을 참고 (탭 이름 예: "10월", "2026년 10월")
+    const targetMonth = findTabForDate(end);
+    const refMonth = targetMonth || state.currentMonth;
     const tasks = (refMonth === state.currentMonth) ? state.tasks : await loadTasks(refMonth);
 
     // 공통 규칙: 취소 제외, 업무명 공란 제외
@@ -1853,7 +1983,7 @@ async function generateWeeklyReport() {
     const lines = [];
     lines.push(`# 주간보고 (${endStr} ${weekdayFull} 작성)`);
     lines.push("");
-    lines.push(`- 참고 시트: 업무현황_${refMonth}${monthExists ? "" : " (해당 월 시트가 없어 현재 열려있는 탭 기준으로 작성)"}`);
+    lines.push(`- 참고 탭: ${refMonth}${targetMonth ? "" : " (작성일이 속한 월의 탭이 없어 현재 열려있는 탭 기준으로 작성)"}`);
     lines.push(`- 대상 기간: ${startStr}(목) ~ ${endStr}(${WEEKDAY_KOR[end.getDay()]})`);
     lines.push("");
     lines.push("## 건수 집계");
