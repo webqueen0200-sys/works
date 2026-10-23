@@ -272,7 +272,13 @@ async function init() {
     });
   }
   applyCategories(await loadCategories());
-  if (typeof loadHolidayData === "function") await loadHolidayData(); // 휴일 관리 (holiday.js)
+  // 휴일 관리 (holiday.js): 서버 응답을 기다리느라 화면 전체가 멈추지 않도록 따로 불러오고, 도착하면 다시 그립니다.
+  if (typeof loadHolidayData === "function") {
+    loadHolidayData().then(() => {
+      if (state.view === "holiday" && typeof renderHolidayView === "function") renderHolidayView();
+      if (state.view === "summary") renderSummary();
+    });
+  }
   state.currentMonth = state.months[state.months.length - 1];
   await switchMonth(state.currentMonth);
   renderMonthTabs();

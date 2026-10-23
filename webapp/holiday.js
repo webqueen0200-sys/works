@@ -7,6 +7,7 @@
 const LEAVE_TYPES = {
   연차: { hours: 8, days: 1 },
   반차: { hours: 4, days: 0.5 },
+  반반차: { hours: 2, days: 0.25 },
   검진: { hours: 8, days: 1 }
 };
 
@@ -197,7 +198,7 @@ function leaveHoursByRoleForMonth(monthLabel) {
   return sums;
 }
 
-function hdFmtNum(n) { return Number.isInteger(n) ? String(n) : n.toFixed(1); }
+function hdFmtNum(n) { return Number.isInteger(n) ? String(n) : String(+n.toFixed(2)); }
 
 // ---------------- 달력 화면 ----------------
 
@@ -351,7 +352,7 @@ function renderHolidayStats() {
   });
   html += `<tr class="total-row"><td colspan="2">계</td><td>${hdFmtNum(totalDays)}일</td><td>${hdFmtNum(totalHours)}H</td></tr>`;
   html += `</tbody></table>
-    <p class="hd-stats-note">주말·공휴일은 제외하고 계산합니다. (연차·검진 8H/일, 반차 4H/0.5일)</p>`;
+    <p class="hd-stats-note">주말·공휴일은 제외하고 계산합니다. (연차·검진 8H/일, 반차 4H/0.5일, 반반차 2H/0.25일)</p>`;
   el.innerHTML = html;
 }
 
