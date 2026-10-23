@@ -970,3 +970,187 @@ tbody select.value-missing {
   .assignee-form { flex-direction: column; }
   .category-form { flex-direction: column; }
 }
+
+/* ============================================================
+   휴일 관리 (holiday.js)
+   ============================================================ */
+
+/* 그룹 색상: 기획 푸른색 · 디자인 보라색 · 퍼블 녹색 · GA 주황색 */
+.role-plan   { --rc-bg: #e3effc; --rc-bd: #0066cc; --rc-fg: #0a4f9e; }
+.role-design { --rc-bg: #f1e8fb; --rc-bd: #8e44d6; --rc-fg: #6a2db0; }
+.role-pub    { --rc-bg: #e3f4e8; --rc-bd: #2e9e55; --rc-fg: #1c7339; }
+.role-ga     { --rc-bg: #fff0de; --rc-bd: #f08c1a; --rc-fg: #a85800; }
+.role-etc    { --rc-bg: #eeeeef; --rc-bd: #8a8a8e; --rc-fg: #555555; }
+
+.hd-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 20px;
+  align-items: start;
+}
+
+.hd-cal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.hd-nav { display: flex; align-items: center; gap: 6px; }
+.hd-nav-btn {
+  border: 1px solid var(--hairline);
+  background: var(--canvas);
+  width: 32px; height: 32px;
+  border-radius: var(--r-pill);
+  font-size: 18px; line-height: 1;
+  color: var(--ink-muted-80);
+  cursor: pointer;
+}
+.hd-nav-btn:hover { border-color: var(--primary); color: var(--primary); }
+.hd-today { padding: 7px 14px; }
+
+.hd-legend { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 12.5px; color: var(--ink-muted-80); }
+.hd-legend-item { display: inline-flex; align-items: center; gap: 5px; }
+.hd-legend-hint { color: var(--ink-muted-48); font-size: 12px; }
+.hd-dot {
+  display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+  background: var(--rc-bd); margin-right: 5px; vertical-align: 1px;
+}
+.hd-legend-item .hd-dot { margin-right: 0; }
+
+/* 달력 */
+.hd-dow-row, .hd-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.hd-dow {
+  padding: 8px 0;
+  text-align: center;
+  font-size: 12px; font-weight: 600;
+  color: var(--ink-muted-80);
+  border-bottom: 1px solid var(--hairline);
+}
+.hd-dow.is-sat { color: #0066cc; }
+.hd-dow.is-sun { color: #d0302f; }
+
+.hd-grid { border-left: 1px solid var(--divider-soft); }
+.hd-cell {
+  min-height: 104px;
+  padding: 6px;
+  border-right: 1px solid var(--divider-soft);
+  border-bottom: 1px solid var(--divider-soft);
+  cursor: pointer;
+  transition: background .12s ease;
+  min-width: 0;
+}
+.hd-cell:hover { background: #f4f8fd; }
+.hd-cell-top { display: flex; align-items: baseline; gap: 6px; min-width: 0; margin-bottom: 4px; }
+.hd-num { font-family: var(--font-mono); font-size: 13px; font-weight: 600; color: var(--ink); }
+.hd-cell.is-sat .hd-num { color: #0066cc; }
+.hd-cell.is-red .hd-num, .hd-hname { color: #d0302f; }
+.hd-hname { font-size: 11px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hd-cell.is-other { background: var(--surface-pearl); }
+.hd-cell.is-other .hd-num, .hd-cell.is-other .hd-hname, .hd-cell.is-other .hd-chips { opacity: 0.4; }
+.hd-cell.is-today .hd-num {
+  background: var(--primary); color: #fff !important;
+  border-radius: var(--r-pill); padding: 1px 7px;
+}
+
+.hd-chips { display: flex; flex-direction: column; gap: 3px; }
+.hd-chip {
+  display: block; width: 100%;
+  text-align: left;
+  border: none;
+  border-left: 3px solid var(--rc-bd);
+  background: var(--rc-bg);
+  color: var(--rc-fg);
+  border-radius: 4px;
+  padding: 3px 6px;
+  font-size: 11.5px; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  cursor: pointer;
+}
+.hd-chip:hover { filter: brightness(0.96); outline: 1px solid var(--rc-bd); }
+
+/* 통계 */
+.hd-stats-table td:first-child { white-space: nowrap; }
+.hd-stats-table tr.is-zero td { color: var(--ink-muted-48); }
+.hd-stats-note { margin: 10px 0 0; font-size: 11.5px; color: var(--ink-muted-48); }
+
+/* 요약 탭: 투입 MM 중 휴가 포함분 */
+.summary-table .leave-mm-row td { color: var(--ink-muted-48); font-size: 12px; }
+
+/* 휴가 등록 팝업 */
+.hd-leave-box { width: 460px; max-width: 92vw; }
+.hd-form-row {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.hd-form-row > label { font-size: 13px; font-weight: 600; color: var(--ink-muted-80); }
+.hd-input {
+  width: 100%;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-sm);
+  padding: 7px 10px;
+  font-size: 13px;
+  font-family: var(--font-text);
+  background: var(--canvas);
+}
+.hd-input:focus { outline: none; border-color: var(--primary-focus); }
+.hd-input.is-invalid { border-color: #d0302f; background: #fff5f5; }
+.hd-range { display: flex; align-items: center; gap: 6px; }
+.hd-tilde { color: var(--ink-muted-48); }
+.hd-date-field {
+  flex: 1; min-width: 0;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-sm);
+  padding-right: 4px;
+  background: var(--canvas);
+}
+.hd-date-field:focus-within { border-color: var(--primary-focus); }
+.hd-date-field .hd-input { border: none; padding: 7px 4px 7px 8px; background: transparent; }
+.hd-date-field .date-btn { font-size: 13px; }
+
+.hd-type-group { display: flex; gap: 6px; }
+.hd-type input { position: absolute; opacity: 0; pointer-events: none; }
+.hd-type span {
+  display: inline-block;
+  padding: 7px 16px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-pill);
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--ink-muted-80);
+}
+.hd-type input:checked + span { background: rgba(0, 102, 204, 0.1); border-color: var(--primary); color: var(--primary); font-weight: 600; }
+.hd-type input:focus-visible + span { outline: 2px solid var(--primary-focus); outline-offset: 1px; }
+.hd-hours { font-size: 14px; }
+.hd-hours .hd-sub { font-size: 12px; color: var(--ink-muted-48); margin-left: 4px; }
+.hd-warn { font-size: 12px; color: #d0302f; margin-left: 4px; }
+.hd-spacer { flex: 1; }
+.hd-del-btn { color: #b5482d; }
+.hd-del-btn:hover { border-color: #b5482d; color: #b5482d; }
+
+/* 휴일 설정 팝업 */
+.hd-year-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.hd-year-bar strong { font-size: 16px; min-width: 64px; text-align: center; }
+.hd-year-count { font-size: 12px; color: var(--ink-muted-48); }
+.hd-preset { margin-left: auto; padding: 6px 12px; font-size: 12px; }
+.hd-holiday-list {
+  display: flex; flex-direction: column; gap: 6px;
+  max-height: 340px; overflow-y: auto;
+  margin-bottom: 10px;
+}
+.hd-holiday-row { display: grid; grid-template-columns: 160px 1fr 22px; gap: 6px; align-items: center; }
+.hd-empty { margin: 8px 0; font-size: 13px; color: var(--ink-muted-48); }
+
+@media (max-width: 960px) {
+  .hd-layout { grid-template-columns: 1fr; }
+}
+@media (max-width: 720px) {
+  .hd-cell { min-height: 72px; padding: 4px; }
+  .hd-chip { font-size: 10.5px; padding: 2px 4px; }
+  .hd-hname { display: none; }
+  .hd-holiday-row { grid-template-columns: 1fr 1fr 22px; }
+}

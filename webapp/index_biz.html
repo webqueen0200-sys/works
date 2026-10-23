@@ -30,6 +30,7 @@
     <button id="btnDashboardView" class="tab-btn active">대시보드</button>
     <button id="btnSheetView" class="tab-btn">업무현황</button>
     <button id="btnSummaryView" class="tab-btn">요약</button>
+    <button id="btnHolidayView" class="tab-btn">휴일관리</button>
   </div>
   <div class="toolbar-right">
     <div id="sheetToolsGroup" class="sheet-tools" style="display:none">
@@ -101,6 +102,8 @@
       <div id="detailMMTable" class="summary-card wide"></div>
     </div>
   </section>
+
+  <section id="holidayPanel" class="panel" style="display:none"></section>
 </main>
 
 <div id="settingsModal" class="modal">
@@ -142,8 +145,34 @@
   // 별도 시스템: 서버 저장 공간·브라우저 저장 키를 index.html 과 분리합니다.
   window.APP_NS = "biz";
 </script>
+<div id="holidayModal" class="modal">
+  <div class="modal-box modal-box-wide">
+    <h2>휴일 설정</h2>
+    <p class="modal-desc">연도별 공휴일(휴일명 · 날짜)을 등록·수정·삭제합니다. 등록된 휴일은 달력에 붉은색으로 표시되고 휴가 시간 계산에서 제외됩니다. 저장을 눌러야 반영됩니다.</p>
+    <div id="holidayForm" class="holiday-form"></div>
+    <div class="modal-actions">
+      <button id="btnHolidayClose" class="btn btn-ghost">닫기</button>
+      <button id="btnHolidaySave" class="btn btn-primary">저장</button>
+    </div>
+  </div>
+</div>
+
+<div id="leaveModal" class="modal">
+  <div class="modal-box hd-leave-box">
+    <h2 id="leaveModalTitle">휴가 등록</h2>
+    <div id="leaveForm" class="leave-form"></div>
+    <div class="modal-actions">
+      <button id="btnLeaveDelete" class="btn btn-ghost hd-del-btn" style="display:none">삭제</button>
+      <span class="hd-spacer"></span>
+      <button id="btnLeaveClose" class="btn btn-ghost">닫기</button>
+      <button id="btnLeaveSave" class="btn btn-primary">저장</button>
+    </div>
+  </div>
+</div>
+
 <script src="config.js"></script>
 <script src="app.js"></script>
+<script src="holiday.js"></script>
 <style>
   /* 영역 접기/펼치기 버튼 */
   #sheetTable thead th.grp-foldable { white-space: nowrap; }

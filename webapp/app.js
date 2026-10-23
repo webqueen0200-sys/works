@@ -7,7 +7,7 @@ const state = {
   currentMonth: null,
   tasks: [],           // 현재 월의 업무 배열
   settings: { targetMM: { ...DEFAULT_TARGET_MM }, workDays: 20 },
-  view: "dashboard",    // "dashboard" | "sheet" | "summary"
+  view: "dashboard",    // "dashboard" | "sheet" | "summary" | "holiday"
   searchText: "",
   statusFilter: "",   // 진행현황 필터 ("" = 전체)
   sortKey: null,        // 정렬 기준 컬럼 key (null이면 시트 등록 순서)
@@ -272,6 +272,7 @@ async function init() {
     });
   }
   applyCategories(await loadCategories());
+  if (typeof loadHolidayData === "function") await loadHolidayData(); // 휴일 관리 (holiday.js)
   state.currentMonth = state.months[state.months.length - 1];
   await switchMonth(state.currentMonth);
   renderMonthTabs();
@@ -331,6 +332,14 @@ function renderMonthTabs() {
   assigneeBtn.textContent = "담당자 설정";
   assigneeBtn.onclick = openAssigneeSettings;
   wrap.appendChild(assigneeBtn);
+
+  if (typeof openHolidaySettings === "function") {
+    const holidayBtn = document.createElement("button");
+    holidayBtn.className = "month-tab assignee-settings-btn";
+    holidayBtn.textContent = "휴일 설정";
+    holidayBtn.onclick = openHolidaySettings;
+    wrap.appendChild(holidayBtn);
+  }
 }
 
 async function addMonth() {
@@ -376,6 +385,8 @@ function bindGlobalControls() {
   document.getElementById("btnDashboardView").onclick = () => setView("dashboard");
   document.getElementById("btnSummaryView").onclick = () => setView("summary");
   document.getElementById("btnSheetView").onclick = () => setView("sheet");
+  const holidayViewBtn = document.getElementById("btnHolidayView");
+  if (holidayViewBtn) holidayViewBtn.onclick = () => setView("holiday");
   document.getElementById("btnSettings").onclick = openSettings;
   document.getElementById("searchInput").oninput = (e) => { state.searchText = e.target.value; renderSheet(); };
   buildStatusFilter();
@@ -408,8 +419,13 @@ function setView(view) {
   document.getElementById("dashboardPanel").style.display = view === "dashboard" ? "block" : "none";
   document.getElementById("sheetPanel").style.display = view === "sheet" ? "block" : "none";
   document.getElementById("summaryPanel").style.display = view === "summary" ? "block" : "none";
+  const holidayViewBtn = document.getElementById("btnHolidayView");
+  const holidayPanel = document.getElementById("holidayPanel");
+  if (holidayViewBtn) holidayViewBtn.classList.toggle("active", view === "holiday");
+  if (holidayPanel) holidayPanel.style.display = view === "holiday" ? "block" : "none";
   document.getElementById("sheetToolsGroup").style.display = view === "sheet" ? "flex" : "none";
   if (view === "summary") renderSummary();
+  if (view === "holiday" && typeof renderHolidayView === "function") renderHolidayView();
   if (view === "dashboard") renderDashboard();
 }
 
@@ -418,6 +434,7 @@ function renderAll() {
   renderSheet();
   if (state.view === "summary") renderSummary();
   if (state.view === "dashboard") renderDashboard();
+  if (state.view === "holiday" && typeof renderHolidayView === "function") renderHolidayView();
 }
 
 // ---------------- Row CRUD ----------------
@@ -957,14 +974,22 @@ function renderMMTable() {
   const el = document.getElementById("mmTable");
   const tasks = state.tasks.filter(t => t.major !== "SI");
   const hourSums = sumHoursByRole(tasks);
+  // 휴일 관리에 등록된 담당자별 휴가 시간(해당 월)을 투입 MM에 더합니다.
+  const leaveHours = typeof leaveHoursByRoleForMonth === "function" ? leaveHoursByRoleForMonth(state.currentMonth) : {};
   const mmByRole = {};
-  ROLES.forEach(r => { mmByRole[r] = hourSums[r] / MM_HOURS; });
+  const leaveMM = {};
+  ROLES.forEach(r => {
+    leaveMM[r] = (leaveHours[r] || 0) / MM_HOURS;
+    mmByRole[r] = hourSums[r] / MM_HOURS + leaveMM[r];
+  });
+  const leaveMMTotal = ROLES.reduce((a, r) => a + leaveMM[r], 0);
   const target = state.settings.targetMM;
 
   let html = `<h3>${state.currentMonth} 업무별 투입 MM</h3><table class="summary-table"><thead><tr><th>구분</th>${ROLES.map(r => `<th>${r}</th>`).join("")}<th>계</th></tr></thead><tbody>`;
   html += `<tr><td>기준 MM</td>${ROLES.map(r => `<td>${target[r] ?? ""}</td>`).join("")}<td>${ROLES.reduce((a, r) => a + num(target[r]), 0)}</td></tr>`;
   const mmTotal = ROLES.reduce((a, r) => a + mmByRole[r], 0);
   html += `<tr><td>투입 MM</td>${ROLES.map(r => `<td>${mmByRole[r].toFixed(3)}</td>`).join("")}<td>${mmTotal.toFixed(3)}</td></tr>`;
+  html += `<tr class="leave-mm-row"><td>ㄴ 휴가 포함</td>${ROLES.map(r => `<td title="${leaveHours[r] || 0}H">${leaveMM[r] ? leaveMM[r].toFixed(3) : "-"}</td>`).join("")}<td>${leaveMMTotal ? leaveMMTotal.toFixed(3) : "-"}</td></tr>`;
   html += `<tr><td>투입률</td>${ROLES.map(r => `<td>${target[r] ? (mmByRole[r] / target[r] * 100).toFixed(1) + "%" : "-"}</td>`).join("")}<td>${(mmTotal / ROLES.reduce((a, r) => a + num(target[r]), 0) * 100 || 0).toFixed(1)}%</td></tr>`;
   html += "</tbody></table>";
   el.innerHTML = html;
@@ -1314,7 +1339,7 @@ function openAssigneeSettings() {
         const after = assigneeDraft[role];
         before.forEach((oldName, i) => {
           const newName = (after[i] || "").trim();
-          if (newName && oldName !== newName) renames.push({ key: roleToKey[role], oldName, newName });
+          if (newName && oldName !== newName) renames.push({ key: roleToKey[role], role, oldName, newName });
         });
       });
 
@@ -1336,6 +1361,8 @@ function openAssigneeSettings() {
           await persistTasks(state.currentMonth, state.tasks);
         }
       }
+
+      if (renames.length && typeof holidayApplyRenames === "function") await holidayApplyRenames(renames);
 
       await saveAssignees(ASSIGNEE_OPTIONS);
 
