@@ -236,7 +236,6 @@ function renderHolidayView() {
         </div>
         <div id="hdCalendar" class="hd-calendar"></div>
       </div>
-      <div class="summary-card hd-stats-card" id="hdStats"></div>
     </div>`;
 
   document.getElementById("hdPrev").onclick = () => hdMoveMonth(-1);
@@ -251,7 +250,6 @@ function renderHolidayView() {
   };
 
   renderHolidayCalendar();
-  renderHolidayStats();
 }
 
 function hdMoveMonth(delta) {
