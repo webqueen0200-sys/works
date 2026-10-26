@@ -231,6 +231,7 @@ function renderHolidayView() {
             <select id="hdMonth" class="status-filter">${monthOpts}</select>
             <button type="button" class="hd-nav-btn" id="hdNext" title="다음 달">›</button>
             <button type="button" class="btn btn-ghost hd-today" id="hdToday">오늘</button>
+            <button type="button" class="btn btn-ghost hd-today" id="hdExportCsv" title="이 달의 휴가 목록을 CSV로 저장">CSV 내보내기</button>
           </div>
           <div class="hd-legend">${legend}<span class="hd-legend-hint">날짜를 누르면 휴가를 등록합니다</span></div>
         </div>
@@ -249,7 +250,46 @@ function renderHolidayView() {
     renderHolidayView();
   };
 
+  document.getElementById("hdExportCsv").onclick = exportLeaveCsv;
+
   renderHolidayCalendar();
+}
+
+// ---------------- 휴가 CSV 내보내기 (보고 있는 연/월 기준) ----------------
+// 해당 월에 걸친 휴가를 한 줄씩 내보냅니다. 근무일수·일수·시간은 그 달에 해당하는 만큼만 계산합니다.
+function exportLeaveCsv() {
+  const { year, month } = holidayState;
+  const map = hdHolidayMap();
+  const prefix = `${year}-${String(month).padStart(2, "0")}-`;
+  const q = (v) => `"${(v ?? "").toString().replace(/"/g, '""')}"`;
+
+  const rows = holidayState.leaves
+    .map(lv => {
+      const t = LEAVE_TYPES[lv.type] || LEAVE_TYPES.연차;
+      const n = hdWorkdays(lv.start, lv.end, map).filter(d => d.startsWith(prefix)).length;
+      return { lv, role: hdRoleOf(lv.assignee, lv.role), n, days: n * t.days, hours: n * t.hours };
+    })
+    .filter(r => r.n > 0)
+    .sort((a, b) => a.lv.start.localeCompare(b.lv.start) || hdRoleOrder(a.role) - hdRoleOrder(b.role) || a.lv.assignee.localeCompare(b.lv.assignee));
+
+  if (!rows.length) { alert(`${year}년 ${month}월에 등록된 휴가가 없습니다.`); return; }
+
+  const header = ["시작일", "종료일", "근태명", "그룹", "담당자", "근무일수", "일수", "시간(H)"];
+  const lines = rows.map(r => [r.lv.start, r.lv.end, r.lv.type, r.role || "-", r.lv.assignee, r.n, hdFmtNum(r.days), hdFmtNum(r.hours)].map(q).join(","));
+  const totalDays = rows.reduce((a, r) => a + r.days, 0);
+  const totalHours = rows.reduce((a, r) => a + r.hours, 0);
+  lines.push(["계", "", "", "", "", rows.reduce((a, r) => a + r.n, 0), hdFmtNum(totalDays), hdFmtNum(totalHours)].map(q).join(","));
+
+  const csv = [header.map(q).join(","), ...lines].join("\r\n");
+  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `휴가공유_${year}년${String(month).padStart(2, "0")}월${window.APP_NS ? "_" + window.APP_NS : ""}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 function hdMoveMonth(delta) {
