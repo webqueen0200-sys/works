@@ -256,7 +256,9 @@ function renderHolidayView() {
 }
 
 // ---------------- 휴가 CSV 내보내기 (보고 있는 연/월 기준) ----------------
-// 해당 월에 걸친 휴가를 한 줄씩 내보냅니다. 근무일수·일수·시간은 그 달에 해당하는 만큼만 계산합니다.
+// 해당 월에 걸친 휴가를 한 줄씩 내보냅니다. 시간·일수는 그 달에 해당하는 근무일만 계산합니다.
+// 열: 그룹 / 담당자 / 시작일 / 종료일 / 근태명 / 시간 / 일수 / 담당자별 시간 합계
+// 정렬: 그룹 → 담당자 → 시작일. "담당자별 시간 합계"는 담당자의 첫 줄에만 표시합니다.
 function exportLeaveCsv() {
   const { year, month } = holidayState;
   const map = hdHolidayMap();
@@ -270,15 +272,25 @@ function exportLeaveCsv() {
       return { lv, role: hdRoleOf(lv.assignee, lv.role), n, days: n * t.days, hours: n * t.hours };
     })
     .filter(r => r.n > 0)
-    .sort((a, b) => a.lv.start.localeCompare(b.lv.start) || hdRoleOrder(a.role) - hdRoleOrder(b.role) || a.lv.assignee.localeCompare(b.lv.assignee));
+    .sort((a, b) => hdRoleOrder(a.role) - hdRoleOrder(b.role) || (a.lv.assignee || "").localeCompare(b.lv.assignee || "") || a.lv.start.localeCompare(b.lv.start));
 
   if (!rows.length) { alert(`${year}년 ${month}월에 등록된 휴가가 없습니다.`); return; }
 
-  const header = ["시작일", "종료일", "근태명", "그룹", "담당자", "근무일수", "일수", "시간(H)"];
-  const lines = rows.map(r => [r.lv.start, r.lv.end, r.lv.type, r.role || "-", r.lv.assignee, r.n, hdFmtNum(r.days), hdFmtNum(r.hours)].map(q).join(","));
+  // 담당자별 시간 합계
+  const hoursByPerson = {};
+  rows.forEach(r => { hoursByPerson[r.lv.assignee] = (hoursByPerson[r.lv.assignee] || 0) + r.hours; });
+
+  const header = ["그룹", "담당자", "시작일", "종료일", "근태명", "시간", "일수", "담당자별 시간 합계"];
+  const shown = new Set();
+  const lines = rows.map(r => {
+    const who = r.lv.assignee;
+    const sum = shown.has(who) ? "" : hdFmtNum(hoursByPerson[who]);
+    shown.add(who);
+    return [r.role || "-", who, r.lv.start, r.lv.end, r.lv.type, hdFmtNum(r.hours), hdFmtNum(r.days), sum].map(q).join(",");
+  });
   const totalDays = rows.reduce((a, r) => a + r.days, 0);
   const totalHours = rows.reduce((a, r) => a + r.hours, 0);
-  lines.push(["계", "", "", "", "", rows.reduce((a, r) => a + r.n, 0), hdFmtNum(totalDays), hdFmtNum(totalHours)].map(q).join(","));
+  lines.push(["계", "", "", "", "", hdFmtNum(totalHours), hdFmtNum(totalDays), hdFmtNum(totalHours)].map(q).join(","));
 
   const csv = [header.map(q).join(","), ...lines].join("\r\n");
   const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });

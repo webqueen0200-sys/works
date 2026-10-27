@@ -396,7 +396,7 @@ function bindGlobalControls() {
   document.getElementById("btnSettings").onclick = openSettings;
   document.getElementById("searchInput").oninput = (e) => { state.searchText = e.target.value; renderSheet(); };
   buildStatusFilter();
-  document.getElementById("btnExport").onclick = exportCsv;
+  document.getElementById("btnExport").onclick = exportExcel;
   document.getElementById("btnImport").onclick = triggerCsvImport;
   document.getElementById("csvFileInput").onchange = handleCsvFile;
   document.getElementById("btnCsvTemplate").onclick = exportCsvTemplate;
@@ -1650,6 +1650,247 @@ function exportCsvTemplate() {
   URL.revokeObjectURL(url);
 }
 
+// ---------------- 엑셀 내보내기 (업무현황 엑셀 양식) ----------------
+// "CSV 내보내기" 버튼 → 업무현황 엑셀 양식(.xlsx)으로 저장합니다. (xlsx.js 사용)
+// 양식: 제목/기간·업무일/기준 MM 머리글, 그룹 머리글(업무 분류·업무 내용·업무 담당자·일정·업무투입),
+//       검정 헤더, 상태별 색상, 하단 직무별 투입 H · M/M · 투입률 합계 행
+const XL_COLS = [
+  // [열, 머리글, task key, 폭, 종류]
+  ["B", "NO", "no", 4.71, "no"],
+  ["C", "배포", "deploy", 6.5, "center"],
+  ["D", "대분류", "major", 8.5, "center"],
+  ["E", "중분류", "minor", 10.86, "text"],
+  ["F", "요청구분", "kind", 8, "center"],
+  ["G", "중요도", "priority", 7.57, "center"],
+  ["H", "업무명", "title", 58.86, "wrap"],
+  ["I", "업무상세", "detail", 26.29, "wrap"],
+  ["J", "요청팀\n(U+)", "reqTeam", 9.71, "wrap"],
+  ["K", "요청자\n(U+)", "reqPerson", 8.5, "center"],
+  ["L", "접수자\n(ML)", "pm", 8.5, "center"],
+  ["M", "접수일", "receivedDate", 6.86, "date"],
+  ["N", "시작일", "startDate", 6.86, "date"],
+  ["O", "완료\n예정일", "dueDate", 6.86, "date"],
+  ["P", "완료일", "doneDate", 6.86, "date"],
+  ["Q", "진행\n현황", "status", 6.43, "status"],
+  ["R", "검수\n(U+)", "reviewed", 6.5, "center"],
+  ["S", "기획\n(H)", "hPlanner", 7, "hour"],
+  ["T", "디자인\n(H)", "hDesigner", 7, "hour"],
+  ["U", "퍼블\n(H)", "hPublisher", 7, "hour"],
+  ["V", "GA\n(H)", "hGa", 7, "hour"],
+  ["W", "PM\n(H)", "hPm", 7, "hour"],
+  ["X", "총합\n(H)", "hTotal", 7.5, "total"],
+  ["Y", "MM", "mm", 8.29, "mm"],
+  ["Z", "비고", "note", 37.71, "wrap"]
+];
+const XL_ROLE_KEYS = ["기획", "디자인", "퍼블", "GA", "PM"];   // S~W 열 순서 (기준 MM)
+const XL_ROLE_LABELS = ["기획", "디자인", "퍼블", "분석", "관리"];
+
+// 셀 안 글자 길이로 행 높이 추정 (한글은 2칸으로 계산)
+function xlEstimateLines(text, width) {
+  const cap = Math.max(4, Math.floor(width * 1.15));
+  return String(text || "").split(/\r?\n/).reduce((sum, line) => {
+    let len = 0;
+    for (const ch of line) len += /[ᄀ-ᇿ㄰-㆏가-힯　-鿿＀-￯]/.test(ch) ? 2 : 1;
+    return sum + Math.max(1, Math.ceil(len / cap));
+  }, 0);
+}
+
+// 순수 함수: 업무 목록 → 엑셀 통합문서 정의 (XlsxLite.build 에 전달)
+function buildTaskWorkbookDef(tasks, opts) {
+  const { year, month, title, sheetName, targetMM = {}, holidayCount = 0 } = opts;
+  const FONT = "맑은 고딕";
+  const GRID = "FF999999";
+  const thin = ["thin", GRID];
+  const box = { l: thin, r: thin, t: thin, b: thin };
+  const st = (o) => Object.assign({ font: { name: FONT, sz: 9 } }, o);
+  const cells = [];
+  const put = (addr, v, s, extra) => {
+    const m = /^([A-Z]+)(\d+)$/.exec(addr);
+    let c = 0; for (const ch of m[1]) c = c * 26 + (ch.charCodeAt(0) - 64);
+    cells.push(Object.assign({ r: +m[2], c, v, s }, extra || {}));
+  };
+
+  const FIRST = 7;
+  const LAST = FIRST + tasks.length - 1;
+  const H_ROW = LAST + 1, MM_ROW = LAST + 2, RATE_ROW = LAST + 3;
+  const rng = (col) => `${col}${FIRST}:${col}${LAST}`;
+  const pad = (n) => String(n).padStart(2, "0");
+  const lastDay = new Date(year, month, 0).getDate();
+
+  // ---- 1~3행: 제목 · 기간/업무일 · 기준 MM / 투입률 ----
+  const roleHead = st({ align: { h: "center", v: "center" } });
+  ["S", "T", "U", "V", "W"].forEach((col, i) => put(col + "1", XL_ROLE_LABELS[i], roleHead));
+  put("X1", "총", roleHead);
+  put("B2", title, st({ font: { name: FONT, sz: 16, b: true }, align: { v: "center" } }));
+  const lab = st({ align: { h: "center", v: "center" } });
+  put("M2", "시작일", lab); put("N2", "종료일", lab); put("O2", "휴일", lab); put("P2", "업무일", lab);
+  ["S", "T", "U", "V", "W"].forEach((col, i) => put(col + "2", num(targetMM[XL_ROLE_KEYS[i]]), lab));
+  put("X2", null, lab, { f: "SUM(S2:W2)" });
+
+  const q = rng("Q");
+  put("B3", null, st({ font: { name: FONT, sz: 10, b: true }, fill: "FFEFEFEF", align: { v: "center" } }), {
+    f: `"ㄴ 총 "&COUNTA(${q})&"건 - 접수 "&COUNTIF(${q},"접수")&"건, 검토 "&COUNTIF(${q},"검토")&"건, 진행 "&COUNTIF(${q},"진행")&"건, 완료 "&COUNTIF(${q},"완료")&"건 / 예정 "&COUNTIF(${q},"예정")&"건, 대기 "&COUNTIF(${q},"대기")&"건, 보류 "&COUNTIF(${q},"보류")&"건, 취소 "&COUNTIF(${q},"취소")&"건"`
+  });
+  const gray = st({ fill: "FFEFEFEF", align: { h: "center", v: "center" } });
+  put("M3", null, Object.assign({}, gray, { numFmt: 'm"/"d' }), { date: `${year}-${pad(month)}-01` });
+  put("N3", null, Object.assign({}, gray, { numFmt: 'm"/"d' }), { date: `${year}-${pad(month)}-${pad(lastDay)}` });
+  put("O3", holidayCount, gray);
+  put("P3", null, gray, { f: "NETWORKDAYS(M3,N3)-O3" });
+  const rateTop = st({ font: { name: FONT, sz: 9, color: "FF9900FF" }, fill: "FFF3F3F3", align: { h: "center", v: "center" }, numFmt: "0.00%" });
+  ["S", "T", "U", "V", "W"].forEach(col => put(col + "3", null, rateTop, { f: `${col}${RATE_ROW}` }));
+  put("X3", null, rateTop, { f: `Y${RATE_ROW}` });
+
+  // ---- 5행: 그룹 머리글 / 6행: 열 머리글 ----
+  const grp = st({ align: { h: "left", v: "center" }, border: box });
+  const groups = [["B", "G", "업무 분류"], ["H", "I", "업무 내용"], ["J", "K", "요청"], ["L", "L", "업무 담당자"], ["M", "R", "일정"], ["S", "Y", "업무투입"], ["Z", "Z", ""]];
+  const merges = ["B3:I3"];
+  groups.forEach(([a, b, label]) => {
+    const from = a.charCodeAt(0), to = b.charCodeAt(0);
+    for (let c = from; c <= to; c++) put(String.fromCharCode(c) + "5", c === from ? label : null, grp);
+    if (a !== b) merges.push(`${a}5:${b}5`);
+  });
+  const head = st({ font: { name: FONT, sz: 9, color: "FFFFFFFF" }, fill: "FF000000", align: { h: "center", v: "center", wrap: true }, border: box });
+  XL_COLS.forEach(([col, label]) => put(col + "6", label, head));
+
+  // ---- 7행~: 업무 ----
+  const rowHeights = { 1: 19.5, 2: 23.25, 3: 19.5, 4: 9, 5: 16.5, 6: 34.5 };
+  tasks.forEach((t, i) => {
+    const r = FIRST + i;
+    let lines = 1;
+    XL_COLS.forEach(([col, , key, width, kind]) => {
+      const addr = col + r;
+      const border = col === "M" ? { l: ["medium", GRID], r: thin, t: thin, b: thin } : box;
+      const base = { border, align: { h: "center", v: "center" } };
+      const v = t[key];
+      switch (kind) {
+        case "no": put(addr, num(t.no) || i + 1, st(base)); break;
+        case "date": put(addr, null, st(Object.assign(base, { numFmt: 'm"/"d' })), { date: v || "" }); break;
+        case "hour": {
+          const n = parseFloat(v);
+          put(addr, isNaN(n) ? null : n, st(Object.assign(base, { fill: "FFFFF2CC", numFmt: "0.0_ " })));
+          break;
+        }
+        case "total": put(addr, null, st(Object.assign(base, { align: { h: "right", v: "center" }, numFmt: "0.0_ ;[Red]\\-0.0\\ " })), { f: `SUM(S${r}:W${r})` }); break;
+        case "mm": put(addr, null, st(Object.assign(base, { align: { h: "right", v: "center" }, numFmt: "0.00_ ;[Red]\\-0.00\\ " })), { f: `IF($D${r}="SI",0,X${r}/${MM_HOURS})` }); break;
+        case "wrap":
+          put(addr, v ?? "", st({ border: col === "H" ? { l: thin, r: thin, t: thin, b: ["thin", "FFB7B7B7"] } : box, align: { h: "left", v: "center", wrap: true } }));
+          lines = Math.max(lines, xlEstimateLines(v, width));
+          break;
+        case "text": put(addr, v ?? "", st({ border: box, align: { h: "left", v: "center" } })); break;
+        default: put(addr, v ?? "", st(base));
+      }
+    });
+    rowHeights[r] = Math.min(180, Math.max(18, lines * 13.5 + 5));
+  });
+
+  // ---- 하단 합계: 직무별 투입 H / M/M / 투입률 ----
+  const foot = (o) => st(Object.assign({ fill: "FFFFFFCC", border: box, align: { h: "center", v: "center" } }, o));
+  const footRows = [[H_ROW, "직무별 투입 H"], [MM_ROW, "직무별 투입 M/M"], [RATE_ROW, "직무별 투입률"]];
+  footRows.forEach(([r, label]) => {
+    XL_COLS.forEach(([col]) => {
+      const addr = col + r;
+      const lastRow = r === RATE_ROW;
+      const border = lastRow ? { l: col === "M" ? ["medium", GRID] : thin, r: thin, t: thin, b: ["medium", "FF000000"] }
+        : (col === "M" ? { l: ["medium", GRID], r: thin, t: thin, b: thin } : box);
+      if (col === "B") put(addr, "#2", foot({ font: { name: FONT, sz: 9, b: true }, border }));
+      else if (col === "H") put(addr, label, foot({ align: { h: "left", v: "center" }, border }));
+      else put(addr, null, foot({ border }));
+    });
+    rowHeights[r] = 18;
+  });
+  // 위에서 빈 셀로 깔아 둔 S~Y 합계 셀을 수식으로 교체
+  const setF = (addr, f, style) => {
+    const idx = cells.findIndex(c => XlsxLite.ref(c.r, c.c) === addr);
+    if (idx >= 0) cells[idx] = Object.assign({}, cells[idx], { f, v: null, s: style || cells[idx].s });
+  };
+  const red = (fmt, border) => foot({ font: { name: FONT, sz: 9, b: true, color: "FFFF0000" }, align: { h: "right", v: "center" }, numFmt: fmt, border });
+  ["S", "T", "U", "V", "W", "X"].forEach(col => {
+    setF(`${col}${H_ROW}`, `SUM(${rng(col)})`, foot({ numFmt: "0.0" }));
+    if (col !== "X") {
+      setF(`${col}${MM_ROW}`, `SUMIFS(${rng(col)},${rng("D")},"<>SI")/${MM_HOURS}`, red("0.00_ ", box));
+      setF(`${col}${RATE_ROW}`, `IFERROR(${col}${MM_ROW}/${col}2,0)`,
+        foot({ numFmt: "0.00%", border: { l: thin, r: thin, t: thin, b: ["medium", "FF000000"] } }));
+    }
+  });
+  setF(`Y${H_ROW}`, `SUM(${rng("Y")})`, foot({ align: { h: "right", v: "center" }, numFmt: "0.00" }));
+  setF(`Y${MM_ROW}`, `Y${H_ROW}`, red("0.00_ ", box));
+  setF(`Y${RATE_ROW}`, `IFERROR(Y${MM_ROW}/X2,0)`, foot({ numFmt: "0.00%", border: { l: thin, r: thin, t: thin, b: ["medium", "FF000000"] } }));
+
+  // ---- 조건부 서식 (업무현황 양식과 동일한 색) ----
+  const cf = [
+    { sqref: `Q${FIRST}:Q${LAST}`, rules: [
+      { type: "cellIs", formula: '"완료"', dxf: { fill: "FFFFC6C6", color: "FF000000" } },
+      { type: "cellIs", formula: '"취소"', dxf: { fill: "FFB6D7A8", color: "FF000000" } },
+      { type: "cellIs", formula: '"진행"', dxf: { fill: "FFC5DAFF", color: "FF000000" } }
+    ] },
+    { sqref: `G${FIRST}:G${LAST}`, rules: [
+      { type: "cellIs", formula: '"긴급"', dxf: { color: "FFFF0000" } },
+      { type: "cellIs", formula: '"상"', dxf: { color: "FFFF0000" } },
+      { type: "cellIs", formula: '"중"', dxf: { color: "FF0066FF" } }
+    ] },
+    { sqref: `B${FIRST}:Z${LAST}`, rules: [
+      { type: "expression", formula: `$Q${FIRST}="완료"`, dxf: { fill: "FFD9D9D9", color: "FF000000" } },
+      { type: "expression", formula: `$Q${FIRST}="취소"`, dxf: { fill: "FFD9D9D9", color: "FF000000" } },
+      { type: "expression", formula: `$Q${FIRST}="보류"`, dxf: { fill: "FFD9D9D9" } }
+    ] },
+    { sqref: `H${FIRST}:I${LAST} Z${FIRST}:Z${LAST}`, rules: [
+      { type: "expression", formula: `$Q${FIRST}="진행"`, dxf: { fill: "FFEAF2FF" } }
+    ] }
+  ];
+
+  return {
+    sheets: [{
+      name: sheetName,
+      cols: [{ c: 1, width: 2.43 }].concat(XL_COLS.map(([col, , , width]) => ({ c: col.charCodeAt(0) - 64, width }))),
+      rowHeights, cells, merges,
+      freeze: { row: 6 },
+      autoFilter: `B6:Z${LAST}`,
+      landscapeFit: true,
+      cf
+    }]
+  };
+}
+
+function exportExcel() {
+  if (typeof XlsxLite === "undefined") { exportCsv(); return; } // xlsx.js 를 못 불러온 경우 기존 CSV로 저장
+  if (!state.tasks.length) { alert("내보낼 업무가 없습니다."); return; }
+  const year = sheetYear();
+  const month = parseInt(state.currentMonth, 10) || (new Date().getMonth() + 1);
+  // 해당 월 평일 중 공휴일 수 (휴일관리 데이터 기준)
+  let holidayCount = 0;
+  try {
+    if (typeof hdHolidayMap === "function") {
+      const map = hdHolidayMap();
+      const prefix = `${year}-${String(month).padStart(2, "0")}-`;
+      holidayCount = Object.keys(map).filter(d => {
+        if (!d.startsWith(prefix)) return false;
+        const dow = new Date(d + "T00:00:00").getDay();
+        return dow !== 0 && dow !== 6;
+      }).length;
+    }
+  } catch (e) { holidayCount = 0; }
+
+  const biz = !!window.APP_NS;
+  const def = buildTaskWorkbookDef(state.tasks, {
+    year, month,
+    title: `${biz ? "디지털사업 " : ""}업무현황_${String(year).slice(2)}년 ${month}월`,
+    sheetName: `업무현황_${month}월`,
+    targetMM: (state.settings && state.settings.targetMM) || DEFAULT_TARGET_MM,
+    holidayCount
+  });
+  const blob = XlsxLite.build(def);
+  const now = new Date();
+  const stamp = `${String(now.getFullYear()).slice(2)}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}`;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `업무현황_${state.currentMonth}${biz ? "_" + window.APP_NS : ""}_${stamp}.xlsx`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 // 따옴표/줄바꿈을 포함한 CSV를 안전하게 파싱
 function parseCsv(text) {
   const rows = [];
@@ -1701,7 +1942,7 @@ async function handleCsvFile(e) {
 
   const mappedCount = Object.keys(colIndex).length;
   if (mappedCount === 0) {
-    alert("양식의 헤더를 인식하지 못했습니다.\n'CSV 내보내기'로 받은 파일의 첫 줄(헤더)을 그대로 유지한 채 올려주세요.");
+    alert("양식의 헤더를 인식하지 못했습니다.\n'양식 받기'로 받은 CSV 파일의 첫 줄(헤더)을 그대로 유지한 채 올려주세요.");
     return;
   }
 
