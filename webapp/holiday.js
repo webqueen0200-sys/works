@@ -398,9 +398,9 @@ function renderHolidayStats() {
     <table class="summary-table hd-stats-table"><thead><tr><th>그룹</th><th>담당자</th><th>일수</th><th>시간</th></tr></thead><tbody>`;
   rows.forEach(r => {
     const dot = `<i class="hd-dot ${LEAVE_ROLE_COLORS[r.role] || "role-etc"}"></i>`;
-    html += `<tr class="${r.hours ? "" : "is-zero"}"><td>${dot}${escapeHtml(r.role || "-")}</td><td>${escapeHtml(r.name)}</td><td>${r.days ? hdFmtNum(r.days) + "일" : "-"}</td><td>${r.hours ? hdFmtNum(r.hours) + "H" : "-"}</td></tr>`;
+    html += `<tr class="${r.hours ? "" : "is-zero"}"><td class="cell-label">${dot}${escapeHtml(r.role || "-")}</td><td class="cell-label">${escapeHtml(r.name)}</td><td>${r.days ? hdFmtNum(r.days) + "일" : "-"}</td><td>${r.hours ? hdFmtNum(r.hours) + "H" : "-"}</td></tr>`;
   });
-  html += `<tr class="total-row"><td colspan="2">계</td><td>${hdFmtNum(totalDays)}일</td><td>${hdFmtNum(totalHours)}H</td></tr>`;
+  html += `<tr class="total-row"><td class="cell-label" colspan="2">계</td><td>${hdFmtNum(totalDays)}일</td><td>${hdFmtNum(totalHours)}H</td></tr>`;
   html += `</tbody></table>
     <p class="hd-stats-note">주말·공휴일은 제외하고 계산합니다. (연차·검진 8H/일, 반차 4H/0.5일, 반반차 2H/0.25일)</p>`;
   el.innerHTML = html;

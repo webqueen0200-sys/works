@@ -512,7 +512,9 @@ tbody input:focus, tbody select:focus, tbody textarea:focus {
   border: 1px solid var(--divider-soft);
   padding: 8px 10px;
   text-align: center;
-  font-family: var(--font-mono);
+  vertical-align: middle;
+  font-family: var(--font-text);
+  font-variant-numeric: tabular-nums;
 }
 .summary-table th {
   background: var(--canvas-parchment);
@@ -521,8 +523,8 @@ tbody input:focus, tbody select:focus, tbody textarea:focus {
   font-weight: 600;
   font-size: 12px;
 }
-.summary-table td:first-child, .summary-table td:nth-child(2) {
-  font-family: var(--font-text);
+/* 구분·이름 등 글자 셀만 왼쪽 정렬, 숫자 셀은 모두 가운데 정렬 */
+.summary-table td.cell-label {
   text-align: left;
 }
 .summary-table .total-row, .summary-table .subtotal-row {
@@ -1076,7 +1078,7 @@ tbody select.value-missing {
 .hd-stats-note { margin: 10px 0 0; font-size: 11.5px; color: var(--ink-muted-48); }
 
 /* 요약 탭: 투입 MM 중 휴가 포함분 */
-.summary-table .leave-mm-row td { color: var(--ink-muted-48); font-size: 12px; }
+.summary-table .leave-mm-row td { color: var(--ink-muted-48); }
 
 /* 휴가 등록 팝업 */
 .hd-leave-box { width: 460px; max-width: 92vw; }

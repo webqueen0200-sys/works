@@ -782,7 +782,7 @@ function renderCell(task, col) {
   if (col.type === "readonly") {
     const span = document.createElement("span");
     span.className = "readonly-cell";
-    span.textContent = col.key === "mm" ? (task.mm ?? 0) : (task[col.key] ?? "");
+    span.textContent = col.key === "mm" ? num(task.mm).toFixed(2) : (task[col.key] ?? "");
     return span;
   }
   if (col.type === "ticket") {
@@ -938,6 +938,9 @@ function activeTasks() {
   return state.tasks;
 }
 
+// MM 표시: 소수점 둘째 자리까지 (0.00)
+function fmtMM(v) { return num(v).toFixed(2); }
+
 function renderSummary() {
   renderCountTable();
   renderMMTable();
@@ -960,9 +963,9 @@ function renderCountTable() {
 
   let html = `<h3>업무 건 수</h3><table class="summary-table"><thead><tr><th>구분</th><th>계</th>${statuses.map(s => `<th>${s}</th>`).join("")}</tr></thead><tbody>`;
   rows.forEach(r => {
-    html += `<tr><td>${r.major}</td><td>${r.total}</td>${r.counts.map(c => `<td>${c || ""}</td>`).join("")}</tr>`;
+    html += `<tr><td class="cell-label">${r.major}</td><td>${r.total}</td>${r.counts.map(c => `<td>${c || ""}</td>`).join("")}</tr>`;
   });
-  html += `<tr class="total-row"><td>계</td><td>${grandTotal}</td>${grandCounts.map(c => `<td>${c || ""}</td>`).join("")}</tr>`;
+  html += `<tr class="total-row"><td class="cell-label">계</td><td>${grandTotal}</td>${grandCounts.map(c => `<td>${c || ""}</td>`).join("")}</tr>`;
   html += "</tbody></table>";
   el.innerHTML = html;
 }
@@ -992,11 +995,11 @@ function renderMMTable() {
   const target = state.settings.targetMM;
 
   let html = `<h3>${state.currentMonth} 업무별 투입 MM</h3><table class="summary-table"><thead><tr><th>구분</th>${ROLES.map(r => `<th>${r}</th>`).join("")}<th>계</th></tr></thead><tbody>`;
-  html += `<tr><td>기준 MM</td>${ROLES.map(r => `<td>${target[r] ?? ""}</td>`).join("")}<td>${ROLES.reduce((a, r) => a + num(target[r]), 0)}</td></tr>`;
+  html += `<tr><td class="cell-label">기준 MM</td>${ROLES.map(r => `<td>${target[r] != null && target[r] !== "" ? fmtMM(target[r]) : ""}</td>`).join("")}<td>${fmtMM(ROLES.reduce((a, r) => a + num(target[r]), 0))}</td></tr>`;
   const mmTotal = ROLES.reduce((a, r) => a + mmByRole[r], 0);
-  html += `<tr><td>투입 MM</td>${ROLES.map(r => `<td>${mmByRole[r].toFixed(3)}</td>`).join("")}<td>${mmTotal.toFixed(3)}</td></tr>`;
-  html += `<tr class="leave-mm-row"><td>ㄴ 휴가 포함</td>${ROLES.map(r => `<td title="${leaveHours[r] || 0}H">${leaveMM[r] ? leaveMM[r].toFixed(3) : "-"}</td>`).join("")}<td>${leaveMMTotal ? leaveMMTotal.toFixed(3) : "-"}</td></tr>`;
-  html += `<tr><td>투입률</td>${ROLES.map(r => `<td>${target[r] ? (mmByRole[r] / target[r] * 100).toFixed(1) + "%" : "-"}</td>`).join("")}<td>${(mmTotal / ROLES.reduce((a, r) => a + num(target[r]), 0) * 100 || 0).toFixed(1)}%</td></tr>`;
+  html += `<tr><td class="cell-label">투입 MM</td>${ROLES.map(r => `<td>${fmtMM(mmByRole[r])}</td>`).join("")}<td>${fmtMM(mmTotal)}</td></tr>`;
+  html += `<tr class="leave-mm-row"><td class="cell-label">ㄴ 휴가 포함</td>${ROLES.map(r => `<td title="${leaveHours[r] || 0}H">${leaveMM[r] ? fmtMM(leaveMM[r]) : "-"}</td>`).join("")}<td>${leaveMMTotal ? fmtMM(leaveMMTotal) : "-"}</td></tr>`;
+  html += `<tr><td class="cell-label">투입률</td>${ROLES.map(r => `<td>${target[r] ? (mmByRole[r] / target[r] * 100).toFixed(1) + "%" : "-"}</td>`).join("")}<td>${(mmTotal / ROLES.reduce((a, r) => a + num(target[r]), 0) * 100 || 0).toFixed(1)}%</td></tr>`;
   html += "</tbody></table>";
   el.innerHTML = html;
 }
@@ -1017,10 +1020,10 @@ function renderDetailMMTable() {
       const sums = sumHoursByRole(tasks);
       const mm = {}; ROLES.forEach(r => { mm[r] = sums[r] / MM_HOURS; subtotal[r] += mm[r]; });
       const rowTotal = ROLES.reduce((a, r) => a + mm[r], 0);
-      html += `<tr>${idx === 0 ? `<td rowspan="${g.minors.length + 1}">${g.major}</td>` : ""}<td>${minor}</td>${ROLES.map(r => `<td>${mm[r] ? mm[r].toFixed(3) : ""}</td>`).join("")}<td>${rowTotal ? rowTotal.toFixed(3) : ""}</td></tr>`;
+      html += `<tr>${idx === 0 ? `<td class="cell-label" rowspan="${g.minors.length + 1}">${g.major}</td>` : ""}<td class="cell-label">${minor}</td>${ROLES.map(r => `<td>${mm[r] ? fmtMM(mm[r]) : ""}</td>`).join("")}<td>${rowTotal ? fmtMM(rowTotal) : ""}</td></tr>`;
     });
     const subTotalSum = ROLES.reduce((a, r) => a + subtotal[r], 0);
-    html += `<tr class="subtotal-row"><td>소계</td>${ROLES.map(r => `<td>${subtotal[r].toFixed(3)}</td>`).join("")}<td>${subTotalSum.toFixed(3)}</td></tr>`;
+    html += `<tr class="subtotal-row"><td class="cell-label">소계</td>${ROLES.map(r => `<td>${fmtMM(subtotal[r])}</td>`).join("")}<td>${fmtMM(subTotalSum)}</td></tr>`;
   });
   html += "</tbody></table>";
   el.innerHTML = html;
@@ -1262,15 +1265,15 @@ function renderAssigneeWorkload(tasks) {
     if (!group.length) return;
     group.forEach((r, i) => {
       html += `<tr>
-        ${i === 0 ? `<td rowspan="${group.length}">${role}</td>` : ""}
-        <td>${escapeHtml(r.name)}</td>
+        ${i === 0 ? `<td class="cell-label" rowspan="${group.length}">${role}</td>` : ""}
+        <td class="cell-label">${escapeHtml(r.name)}</td>
         <td>${r.active ? `<span class="count-hl">${r.active}</span>` : "-"}</td>
         <td>${r.waiting ? `<span class="count-sub">${r.waiting}</span>` : "-"}</td>
         <td>${r.total ? `<span class="count-hl">${r.total}</span>` : "-"}</td>
       </tr>`;
     });
   });
-  html += `<tr class="total-row"><td colspan="4">전체 진행 중</td><td><span class="count-hl">${grand}</span></td></tr>`;
+  html += `<tr class="total-row"><td class="cell-label" colspan="4">전체 진행 중</td><td><span class="count-hl">${grand}</span></td></tr>`;
   html += `</tbody></table>`;
   if (unassigned) {
     html += `<p class="dash-empty">※ 담당자 미지정 진행 중 업무 ${unassigned}건</p>`;
