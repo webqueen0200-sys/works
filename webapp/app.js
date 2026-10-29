@@ -1016,12 +1016,10 @@ function renderMMTable() {
 
 function renderDetailMMTable() {
   const el = document.getElementById("detailMMTable");
-  const majorGroups = [
-    { major: "기업", minors: MINOR_CATEGORY_MAP["기업"] },
-    { major: "소상공인", minors: MINOR_CATEGORY_MAP["소상공인"] },
-    { major: "GA", minors: MINOR_CATEGORY_MAP["GA"] },
-    { major: "공통", minors: MINOR_CATEGORY_MAP["공통"] }
-  ];
+  // 분류 설정에 등록된 대분류 순서대로 표시 (대분류명을 바꾸거나 삭제해도 오류 없이 동작)
+  const majorGroups = MAJOR_CATEGORIES
+    .map(major => ({ major, minors: MINOR_CATEGORY_MAP[major] || [] }))
+    .filter(g => g.minors.length);
   let html = `<h3>대분류 · 중분류별 투입 MM</h3><table class="summary-table"><thead><tr><th>대분류</th><th>중분류</th>${ROLES.map(r => `<th>${r}</th>`).join("")}<th>계</th></tr></thead><tbody>`;
   majorGroups.forEach(g => {
     let subtotal = ROLES.reduce((acc, r) => ({ ...acc, [r]: 0 }), {});
@@ -1511,9 +1509,9 @@ function openCategorySettings() {
       await saveCategories({ majors, minors });
       document.getElementById("categoryModal").style.display = "none";
       categoryDraft = null;
-      renderSheet();
-      renderSummary();
-      renderDashboard();
+      // 서버 저장은 끝났으므로 화면 갱신 오류는 저장 실패로 안내하지 않음
+      try { renderSheet(); renderSummary(); renderDashboard(); }
+      catch (renderErr) { console.error("분류 변경 후 화면 갱신 오류:", renderErr); }
     } catch (err) {
       console.error("분류 설정 저장 실패:", err);
       alert(
