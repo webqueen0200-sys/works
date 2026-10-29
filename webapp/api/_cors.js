@@ -7,7 +7,7 @@
 function setCorsHeaders(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   res.setHeader("Access-Control-Max-Age", "86400");
   // 데이터 API는 절대 캐시되면 안 됩니다.
   // (저장 직후 새로고침했을 때 예전 응답이 내려오는 것을 방지)
@@ -27,7 +27,10 @@ function applyCors(req, res) {
 }
 
 // 권장 방식: module.exports = withApi(async (req, res) => { ... })
-function withApi(handler) {
+// 기본적으로 로그인(토큰)이 있어야 호출됩니다. 로그인 사용자는 req.authUser 로 넘어옵니다.
+// 로그인 없이 열어야 하는 API(연결 진단·로그인)는 withApi(handler, { public: true }) 로 감쌉니다.
+function withApi(handler, opts) {
+  const isPublic = !!(opts && opts.public);
   return async (req, res) => {
     setCorsHeaders(res);
     if (req.method === "OPTIONS") {
@@ -35,6 +38,17 @@ function withApi(handler) {
       return;
     }
     try {
+      if (!isPublic) {
+        // 순환 참조를 피하려고 여기서 불러옵니다.
+        const { authenticate } = require("./_auth");
+        const auth = await authenticate(req);
+        if (!auth) {
+          res.status(401).json({ error: "로그인이 필요합니다.", code: "AUTH_REQUIRED" });
+          return;
+        }
+        req.authUser = auth.user;
+        req.authToken = auth.token;
+      }
       await handler(req, res);
     } catch (err) {
       console.error("[API ERROR]", req.method, req.url, err);

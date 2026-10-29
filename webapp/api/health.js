@@ -3,6 +3,7 @@
 const { withApi } = require("./_cors");
 const { isConfigured, getClient } = require("./_kv");
 
+// 연결 진단은 로그인 없이도 열 수 있습니다. (데이터는 내려주지 않음)
 module.exports = withApi(async (req, res) => {
   const configured = isConfigured();
   const result = {
@@ -37,4 +38,4 @@ module.exports = withApi(async (req, res) => {
   }
 
   return res.status(200).json(result);
-});
+}, { public: true });

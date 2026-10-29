@@ -11,12 +11,14 @@ webapp/
 ├─ index.html        관리 화면
 ├─ styles.css
 ├─ app.js            화면 로직 (테이블 렌더링, 드롭다운, 요약 계산)
+├─ auth.js          로그인 화면 · 사용자 메뉴 (4개 화면 공통)
 ├─ config.js         드롭다운 옵션 · 담당자 코드 · 컬럼 정의 (여기서 API_BASE 설정)
 ├─ api/
 │  ├─ months.js       월 시트 목록 조회/저장
 │  ├─ settings.js     월별 기준 MM / 업무일수 설정
 │  ├─ tasks.js        업무 목록 조회 · 신규 등록
-│  ├─ tasks/[id].js   업무 수정 · 삭제
+│  ├─ auth.js         로그인 · 비밀번호 변경 · 사용자 관리
+│  ├─ _auth.js        로그인 공통 함수 (비밀번호 해시, 세션)
 │  ├─ _kv.js          Vercel KV 접근 래퍼
 │  └─ _cors.js        CORS 허용 헤더
 ├─ package.json       (@vercel/kv 의존성)
