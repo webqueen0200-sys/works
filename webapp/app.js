@@ -16,11 +16,21 @@ const state = {
 
 // ---------------- Storage layer (Vercel API 또는 localStorage) ----------------
 
-const LOCAL_MONTHS_KEY = "wm_months_v1";
-const LOCAL_ASSIGNEES_KEY = "wm_assignees_v1";
+// 데이터 분리(namespace): index_biz.html 처럼 window.APP_NS 가 있으면
+// 서버 요청에 ?ns=<값> 을 붙이고, 브라우저 저장 키 끝에 _<값> 을 붙여 index.html 데이터와 섞이지 않게 합니다.
+// (index.html 은 APP_NS 가 없으므로 기존과 완전히 동일하게 동작)
+function nsSuffix() { return window.APP_NS ? `_${window.APP_NS}` : ""; }
+function withNs(path) {
+  if (!window.APP_NS || /[?&]ns=/.test(path)) return path;
+  return path + (path.includes("?") ? "&" : "?") + "ns=" + encodeURIComponent(window.APP_NS);
+}
+
+const LOCAL_MONTHS_KEY = "wm_months_v1" + nsSuffix();
+const LOCAL_ASSIGNEES_KEY = "wm_assignees_v1" + nsSuffix();
+const LOCAL_CATEGORIES_KEY = "wm_categories_v1" + nsSuffix();
 function localMonthsKey() { return LOCAL_MONTHS_KEY; }
-function localTasksKey(month) { return `wm_tasks_v1_${month}`; }
-function localSettingsKey(month) { return `wm_settings_v1_${month}`; }
+function localTasksKey(month) { return `wm_tasks_v1${nsSuffix()}_${month}`; }
+function localSettingsKey(month) { return `wm_settings_v1${nsSuffix()}_${month}`; }
 
 function uid() {
   return (crypto.randomUUID ? crypto.randomUUID() : "id_" + Date.now() + "_" + Math.random().toString(16).slice(2));
@@ -28,7 +38,7 @@ function uid() {
 
 async function apiFetchJson(path, options) {
   // cache: "no-store" — 저장 직후 새로고침 시 브라우저가 예전 응답을 재사용하지 않도록
-  const res = await fetch(API_BASE + path, { cache: "no-store", ...(options || {}) });
+  const res = await fetch(API_BASE + withNs(path), { cache: "no-store", ...(options || {}) });
   if (!res.ok) {
     let detail = "";
     try {
@@ -1438,20 +1448,20 @@ let categoryActiveMajor = null;
 
 async function loadCategories() {
   if (!API_BASE) {
-    const raw = localStorage.getItem("wm_categories_v1");
+    const raw = localStorage.getItem(LOCAL_CATEGORIES_KEY);
     return raw ? JSON.parse(raw) : null;
   }
   try {
     const data = await apiFetchJson("/api/categories");
     return data.categories || null;
   } catch (e) {
-    const raw = localStorage.getItem("wm_categories_v1");
+    const raw = localStorage.getItem(LOCAL_CATEGORIES_KEY);
     return raw ? JSON.parse(raw) : null;
   }
 }
 
 async function saveCategories(categories) {
-  try { localStorage.setItem("wm_categories_v1", JSON.stringify(categories)); } catch (e) { /* 무시 */ }
+  try { localStorage.setItem(LOCAL_CATEGORIES_KEY, JSON.stringify(categories)); } catch (e) { /* 무시 */ }
   if (!API_BASE) return;
   await apiFetchJson("/api/categories", {
     method: "PUT",
@@ -2020,7 +2030,7 @@ async function checkConnection() {
 
   // 2단계: 쓰기 테스트 (PUT — CORS 사전확인 OPTIONS 발생. 실제 데이터는 건드리지 않음)
   try {
-    const res = await fetch(`${API_BASE}/api/tasks`, {
+    const res = await fetch(`${API_BASE}${withNs("/api/tasks")}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ month: "__연결테스트__", tasks: [] })

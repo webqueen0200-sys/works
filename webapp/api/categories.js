@@ -1,5 +1,6 @@
 const { withApi } = require("./_cors");
 const { getJSON, setJSON } = require("./_kv");
+const { resolveNs } = require("./_ns");
 
 const DEFAULT_CATEGORIES = {
   majors: ["기업", "소상공인", "GA", "공통", "SI"],
@@ -13,8 +14,11 @@ const DEFAULT_CATEGORIES = {
 };
 
 module.exports = withApi(async (req, res) => {
+  // ?ns=biz 가 있으면 저장 키 앞에 "biz:" 를 붙여 index_biz.html 데이터를 분리합니다.
+  const ns = resolveNs(req);
+  if (!ns.ok) return res.status(400).json({ error: ns.error });
   if (req.method === "GET") {
-    const categories = await getJSON("categories", DEFAULT_CATEGORIES);
+    const categories = await getJSON(ns.key("categories"), DEFAULT_CATEGORIES);
     return res.status(200).json({ categories });
   }
 
@@ -23,7 +27,7 @@ module.exports = withApi(async (req, res) => {
     if (!categories || !Array.isArray(categories.majors)) {
       return res.status(400).json({ error: "categories.majors 배열이 필요합니다." });
     }
-    await setJSON("categories", categories);
+    await setJSON(ns.key("categories"), categories);
     return res.status(200).json({ categories });
   }
 

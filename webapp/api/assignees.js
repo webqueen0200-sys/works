@@ -1,5 +1,6 @@
 const { withApi } = require("./_cors");
 const { getJSON, setJSON } = require("./_kv");
+const { resolveNs } = require("./_ns");
 
 const DEFAULT_ASSIGNEES = {
   기획: ["기획2", "기획3", "기획4"],
@@ -9,15 +10,18 @@ const DEFAULT_ASSIGNEES = {
 };
 
 module.exports = withApi(async (req, res) => {
+  // ?ns=biz 가 있으면 저장 키 앞에 "biz:" 를 붙여 index_biz.html 데이터를 분리합니다.
+  const ns = resolveNs(req);
+  if (!ns.ok) return res.status(400).json({ error: ns.error });
   if (req.method === "GET") {
-    const assignees = await getJSON("assignees", DEFAULT_ASSIGNEES);
+    const assignees = await getJSON(ns.key("assignees"), DEFAULT_ASSIGNEES);
     return res.status(200).json({ assignees });
   }
 
   if (req.method === "PUT") {
     const { assignees } = req.body || {};
     if (!assignees) return res.status(400).json({ error: "assignees 값이 필요합니다." });
-    await setJSON("assignees", assignees);
+    await setJSON(ns.key("assignees"), assignees);
     return res.status(200).json({ assignees });
   }
 

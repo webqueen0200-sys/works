@@ -1,22 +1,26 @@
 const { withApi } = require("./_cors");
 const { getJSON, setJSON } = require("./_kv");
+const { resolveNs } = require("./_ns");
 const { randomUUID } = require("crypto");
 
 module.exports = withApi(async (req, res) => {
+  // ?ns=biz 가 있으면 저장 키 앞에 "biz:" 를 붙여 index_biz.html 데이터를 분리합니다.
+  const ns = resolveNs(req);
+  if (!ns.ok) return res.status(400).json({ error: ns.error });
   if (req.method === "GET") {
     const month = req.query.month;
     if (!month) return res.status(400).json({ error: "month 쿼리 파라미터가 필요합니다." });
-    const tasks = await getJSON(`tasks:${month}`, []);
+    const tasks = await getJSON(ns.key(`tasks:${month}`), []);
     return res.status(200).json({ tasks });
   }
 
   if (req.method === "POST") {
     const { month, task } = req.body || {};
     if (!month || !task) return res.status(400).json({ error: "month, task 값이 필요합니다." });
-    const tasks = await getJSON(`tasks:${month}`, []);
+    const tasks = await getJSON(ns.key(`tasks:${month}`), []);
     const newTask = { ...task, id: task.id || randomUUID() };
     tasks.push(newTask);
-    await setJSON(`tasks:${month}`, tasks);
+    await setJSON(ns.key(`tasks:${month}`), tasks);
     return res.status(201).json({ task: newTask });
   }
 
@@ -25,7 +29,7 @@ module.exports = withApi(async (req, res) => {
     const { month, tasks } = req.body || {};
     if (!month || !Array.isArray(tasks)) return res.status(400).json({ error: "month, tasks 배열이 필요합니다." });
     const withIds = tasks.map(t => ({ ...t, id: t.id || randomUUID() }));
-    await setJSON(`tasks:${month}`, withIds);
+    await setJSON(ns.key(`tasks:${month}`), withIds);
     return res.status(200).json({ tasks: withIds });
   }
 

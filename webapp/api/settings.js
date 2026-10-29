@@ -1,20 +1,24 @@
 const { withApi } = require("./_cors");
 const { getJSON, setJSON } = require("./_kv");
+const { resolveNs } = require("./_ns");
 
 const DEFAULT_SETTINGS = { targetMM: { 기획: 2, 디자인: 2, 퍼블: 3, GA: 1, PM: 1 }, workDays: 20 };
 
 module.exports = withApi(async (req, res) => {
+  // ?ns=biz 가 있으면 저장 키 앞에 "biz:" 를 붙여 index_biz.html 데이터를 분리합니다.
+  const ns = resolveNs(req);
+  if (!ns.ok) return res.status(400).json({ error: ns.error });
   if (req.method === "GET") {
     const month = req.query.month;
     if (!month) return res.status(400).json({ error: "month 쿼리 파라미터가 필요합니다." });
-    const settings = await getJSON(`settings:${month}`, DEFAULT_SETTINGS);
+    const settings = await getJSON(ns.key(`settings:${month}`), DEFAULT_SETTINGS);
     return res.status(200).json({ settings });
   }
 
   if (req.method === "PUT") {
     const { month, settings } = req.body || {};
     if (!month || !settings) return res.status(400).json({ error: "month, settings 값이 필요합니다." });
-    await setJSON(`settings:${month}`, settings);
+    await setJSON(ns.key(`settings:${month}`), settings);
     return res.status(200).json({ settings });
   }
 
