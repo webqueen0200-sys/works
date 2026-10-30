@@ -363,10 +363,66 @@ async function addMonth() {
   if (!label) return;
   const clean = label.trim().endsWith("월") ? label.trim() : `${label.trim()}월`;
   if (state.months.includes(clean)) { alert("이미 존재하는 월입니다."); return; }
+
+  // 이전 월 시트에서 진행현황이 "접수/진행/예정"인 업무를 원래 순서대로 가져옵니다.
+  const carried = await carryOverTasks(clean);
+
   state.months.push(clean);
   await saveMonths(state.months);
+  // 바로 서버에 저장한 뒤 새 월로 이동 (지연 저장을 쓰면 이동 시 빈 목록을 불러오는 문제가 생김)
+  if (carried.tasks.length) await saveCarriedTasks(clean, carried.tasks);
   renderMonthTabs();
   await switchMonth(clean);
+  if (carried.source) {
+    alert(`'${carried.source}' 시트에서 진행현황이 접수·진행·예정인 업무 ${carried.tasks.length}건을 가져왔습니다.`);
+  }
+}
+
+// 새 월 시트로 넘길 진행현황
+const CARRY_OVER_STATUSES = ["접수", "진행", "예정"];
+
+// 가져올 원본 월: 새 월 바로 이전 달(숫자 기준) 중 가장 가까운 시트, 없으면 마지막 탭
+function carryOverSourceMonth(newMonth) {
+  if (!state.months.length) return null;
+  const n = parseInt(newMonth, 10);
+  const prev = state.months
+    .map(m => ({ m, n: parseInt(m, 10) }))
+    .filter(x => !isNaN(x.n) && !isNaN(n) && x.n < n)
+    .sort((a, b) => b.n - a.n)[0];
+  return prev ? prev.m : state.months[state.months.length - 1];
+}
+
+async function carryOverTasks(newMonth) {
+  const source = carryOverSourceMonth(newMonth);
+  if (!source) return { source: null, tasks: [] };
+  const srcTasks = source === state.currentMonth ? state.tasks : await loadTasks(source);
+  const tasks = (srcTasks || [])
+    .filter(t => CARRY_OVER_STATUSES.includes((t.status || "").trim()))
+    .map((t, i) => {
+      const copy = { ...emptyTask(), ...JSON.parse(JSON.stringify(t)) };
+      copy.id = uid();
+      copy.no = i + 1;
+      // 투입시간은 월별 MM 계산용이라 새 달에는 비워서 시작 (이전 달과 중복 집계 방지)
+      copy.hPlanner = ""; copy.hDesigner = ""; copy.hPublisher = ""; copy.hGa = ""; copy.hPm = "";
+      recomputeHours(copy);
+      return copy;
+    });
+  return { source, tasks };
+}
+
+async function saveCarriedTasks(month, tasks) {
+  try { localStorage.setItem(localTasksKey(month), JSON.stringify(tasks)); } catch (e) {}
+  if (!API_BASE) return;
+  try {
+    await apiFetchJson("/api/tasks", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ month, tasks })
+    });
+  } catch (err) {
+    console.error("[이월 업무 저장 실패]", err);
+    persistTasks(month, tasks); // 재시도 대기열에 등록
+  }
 }
 
 async function deleteMonth(month) {
