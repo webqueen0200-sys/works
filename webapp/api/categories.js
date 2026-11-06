@@ -1,6 +1,7 @@
 const { withApi } = require("./_cors");
 const { getJSON, setJSON } = require("./_kv");
 const { resolveNs } = require("./_ns");
+const detail = require("./_detail");
 
 const DEFAULT_CATEGORIES = {
   majors: ["기업", "소상공인", "GA", "공통", "SI"],
@@ -17,9 +18,11 @@ module.exports = withApi(async (req, res) => {
   // ?ns=biz 가 있으면 저장 키 앞에 "biz:" 를 붙여 index_biz.html 데이터를 분리합니다.
   const ns = resolveNs(req);
   if (!ns.ok) return res.status(400).json({ error: ns.error });
+  if (detail.denyNonAdminWrite(req, res, ns)) return; // 업무상세내역은 관리자만 변경
   if (req.method === "GET") {
-    const categories = await getJSON(ns.key("categories"), DEFAULT_CATEGORIES);
-    return res.status(200).json({ categories });
+    // stored: 저장된 값이 있는지 (없으면 화면이 기본값을 씁니다)
+    const saved = await getJSON(ns.key("categories"), null);
+    return res.status(200).json({ categories: saved || DEFAULT_CATEGORIES, stored: !!saved });
   }
 
   if (req.method === "PUT") {

@@ -2,11 +2,14 @@ const { withApi } = require("./_cors");
 const { getJSON, setJSON } = require("./_kv");
 const { resolveNs } = require("./_ns");
 const { randomUUID } = require("crypto");
+const detail = require("./_detail");
 
 module.exports = withApi(async (req, res) => {
   // ?ns=biz 가 있으면 저장 키 앞에 "biz:" 를 붙여 index_biz.html 데이터를 분리합니다.
   const ns = resolveNs(req);
   if (!ns.ok) return res.status(400).json({ error: ns.error });
+  // ?ns=detail (업무상세내역): 사용자별 저장 · 관리자 전체 조회/탭 삭제 → _detail.js
+  if (detail.isDetail(ns)) return detail.handleDetailTasks(req, res);
   if (req.method === "GET") {
     const month = req.query.month;
     if (!month) return res.status(400).json({ error: "month 쿼리 파라미터가 필요합니다." });

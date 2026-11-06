@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>업무상세내역</title>
+<!-- 로그인 (모든 API 요청보다 먼저 불러와야 합니다) -->
+<script src="auth.js?v=20261029c"></script>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css" />
+<link rel="stylesheet" href="styles.css?v=20261029b" />
+<link rel="stylesheet" href="detail.css?v=20261106a" />
+</head>
+<body>
+
+<nav class="global-nav" aria-label="서비스 메뉴">
+  <a href="https://webqueen0200-sys.github.io/works/webapp/index.html">업무관리</a>
+  <a href="https://webqueen0200-sys.github.io/works/developlist.html">배포 관리</a>
+  <a href="https://webqueen0200-sys.github.io/works/bloglist.html">블로그 게시 관리</a>
+  <a href="https://webqueen0200-sys.github.io/works/webapp/detail.html" class="active" aria-current="page">업무상세내역</a>
+</nav>
+
+<header class="app-header">
+  <div class="brand" id="brandHome" title="업무 입력 화면으로 이동">
+    <span class="brand-mark">▤</span>
+    <div class="brand-text">
+      <h1>업무상세내역</h1>
+    </div>
+  </div>
+  <div class="api-status">
+    <span id="saveStatus" class="save-status"></span>
+    <button id="btnHealth" class="btn-health">연결 확인</button>
+  </div>
+</header>
+
+<nav id="monthTabs" class="month-tabs"></nav>
+
+<div class="toolbar">
+  <div class="toolbar-left">
+    <button id="btnEntryView" class="tab-btn active">업무 입력</button>
+    <button id="btnSummaryView" class="tab-btn">요약</button>
+    <button id="btnDashboardView" class="tab-btn admin-only">대시보드</button>
+  </div>
+  <div class="toolbar-right">
+    <div class="period-box" title="조회 기간 (시작월 ~ 종료월)">
+      <span class="period-label">조회</span>
+      <select id="periodStart" class="status-filter"></select>
+      <span class="period-sep">~</span>
+      <select id="periodEnd" class="status-filter"></select>
+      <button id="btnSearch" class="btn btn-primary btn-compact">조회</button>
+    </div>
+    <span class="tool-sep"></span>
+    <button id="btnImport" class="btn btn-ghost">CSV 업로드</button>
+    <button id="btnCsvTemplate" class="btn btn-ghost">양식 받기</button>
+    <button id="btnExport" class="btn btn-ghost">엑셀 다운로드</button>
+    <button id="btnAdminExport" class="btn btn-ghost admin-only">관리자 엑셀 다운로드</button>
+    <button id="btnCategorySettings" class="btn btn-ghost admin-only">분류 설정</button>
+    <button id="btnSettings" class="btn btn-ghost admin-only">기준 설정</button>
+    <input id="csvFileInput" type="file" accept=".csv,text/csv" style="display:none" />
+  </div>
+</div>
+
+<main>
+  <!-- ===== 업무 입력 ===== -->
+  <section id="entryPanel" class="panel">
+    <div class="entry-card" id="entryCard">
+      <div class="entry-head">
+        <h3 id="entryTitle">업무 입력</h3>
+        <span id="entryEditBadge" class="edit-badge" style="display:none">수정 중</span>
+        <span class="entry-tab" id="entryTabLabel"></span>
+      </div>
+
+      <div class="entry-grid">
+        <label class="ef ef-month">
+          <span>월</span>
+          <input id="fMonth" type="text" inputmode="numeric" maxlength="7" placeholder="YYYY.MM" />
+        </label>
+        <label class="ef ef-worker">
+          <span>완료처리자</span>
+          <input id="fWorker" type="text" list="workerList" maxlength="40" />
+          <datalist id="workerList"></datalist>
+        </label>
+        <div class="ef ef-date">
+          <span>처리일</span>
+          <div class="date-wrap">
+            <input id="fDate" type="text" inputmode="numeric" maxlength="10" placeholder="YYYY.MM.DD" />
+            <button type="button" id="fDateBtn" class="date-btn" title="달력에서 선택" aria-label="달력에서 선택">📅</button>
+            <input id="fDatePicker" type="date" class="date-picker-hidden" tabindex="-1" aria-hidden="true" />
+          </div>
+        </div>
+        <div class="ef ef-min">
+          <span>처리소요시간(분)</span>
+          <input id="fMinutes" type="text" inputmode="numeric" maxlength="4" placeholder="0" />
+          <div class="day-meter" id="dayMeter" title="처리일 기준, 같은 날짜에 입력한 처리소요시간 합계">
+            <div class="day-meter-track"><div class="day-meter-fill" id="dayMeterFill"></div></div>
+            <span class="day-meter-text" id="dayMeterText">0분/480분</span>
+          </div>
+        </div>
+        <label class="ef ef-count">
+          <span>처리건수</span>
+          <input id="fCount" type="text" value="1" readonly tabindex="-1" />
+        </label>
+
+        <label class="ef ef-title">
+          <span>업무명 <em id="titleCounter" class="counter">0/300</em></span>
+          <input id="fTitle" type="text" maxlength="300" placeholder="처리한 업무를 입력하세요" />
+        </label>
+      </div>
+
+      <div class="cat-block">
+        <div class="fav-row">
+          <span class="fav-label">★ 즐겨찾기</span>
+          <div id="favChips" class="fav-chips"></div>
+        </div>
+        <div class="cat-row">
+          <label class="ef"><span>대분류</span><select id="fMajor"></select></label>
+          <label class="ef"><span>중분류</span><select id="fMinor"></select></label>
+          <label class="ef ef-sub"><span>소분류</span><select id="fSub"></select></label>
+          <button type="button" id="btnFavToggle" class="fav-toggle" title="선택한 분류를 즐겨찾기에 추가">☆ 즐겨찾기 추가</button>
+        </div>
+      </div>
+
+      <div class="entry-actions">
+        <span id="entryMsg" class="entry-msg"></span>
+        <button type="button" id="btnEntryCancel" class="btn btn-ghost" style="display:none">수정 취소</button>
+        <button type="button" id="btnEntryReset" class="btn btn-ghost">초기화</button>
+        <button type="button" id="btnEntrySave" class="btn btn-primary">저장</button>
+      </div>
+    </div>
+
+    <div class="list-card">
+      <div class="list-head">
+        <h3 id="listTitle">업무 목록</h3>
+        <span id="listSearchChip" class="search-chip" style="display:none"></span>
+        <span id="listCount" class="row-count"></span>
+        <span class="month-tabs-spacer"></span>
+        <button type="button" id="btnDeleteSelected" class="btn btn-ghost btn-danger" disabled>선택 삭제</button>
+      </div>
+      <div class="table-scroll">
+        <table id="listTable" class="list-table">
+          <thead>
+            <tr>
+              <th class="c-chk"><input type="checkbox" id="chkAll" title="전체 선택" /></th>
+              <th class="c-no">NO</th>
+              <th class="c-tab search-only">탭</th>
+              <th class="c-month">월</th>
+              <th class="c-title">업무명</th>
+              <th class="c-worker">완료처리자</th>
+              <th class="c-date">처리일</th>
+              <th class="c-num">처리소요시간(분)</th>
+              <th class="c-num">처리건수</th>
+              <th>대분류</th>
+              <th>중분류</th>
+              <th>소분류</th>
+              <th class="c-act"></th>
+            </tr>
+          </thead>
+          <tbody id="listBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 요약 ===== -->
+  <section id="summaryPanel" class="panel" style="display:none">
+    <div class="dash-header">
+      <h2 id="summaryTitle">요약</h2>
+      <button id="btnSummaryRefresh" class="btn btn-ghost">새로고침</button>
+    </div>
+    <div class="summary-grid">
+      <div id="sumWorkerCard" class="summary-card wide"></div>
+      <div id="sumMMCard" class="summary-card wide"></div>
+    </div>
+  </section>
+
+  <!-- ===== 대시보드 (관리자) ===== -->
+  <section id="dashboardPanel" class="panel" style="display:none">
+    <div class="dash-header">
+      <h2 id="dashTitle">대시보드</h2>
+      <button id="btnDashRefresh" class="btn btn-ghost">새로고침</button>
+    </div>
+    <div id="dashKpis" class="dash-kpis"></div>
+    <div class="summary-grid">
+      <div id="dashMatrixCard" class="summary-card wide"></div>
+      <div id="dashRoleCard" class="summary-card"></div>
+      <div id="dashMajorCard" class="summary-card"></div>
+    </div>
+  </section>
+</main>
+
+<!-- 새 월 시트 -->
+<div id="tabModal" class="modal">
+  <div class="modal-box">
+    <h2>새 월 시트</h2>
+    <p class="modal-desc">탭 이름을 입력하고 저장하면 새 탭이 만들어집니다.</p>
+    <input id="tabNameInput" class="modal-input" type="text" maxlength="30" placeholder="세부업무_11월" />
+    <p id="tabModalMsg" class="modal-err"></p>
+    <div class="modal-actions">
+      <button id="btnTabClose" class="btn btn-ghost">취소</button>
+      <button id="btnTabSave" class="btn btn-primary">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- 삭제 확인 (공통) -->
+<div id="confirmModal" class="modal">
+  <div class="modal-box">
+    <h2 id="confirmTitle">삭제</h2>
+    <p id="confirmText" class="confirm-danger">삭제하면 복구할 수 없습니다. 삭제하시겠습니까?</p>
+    <div class="modal-actions">
+      <button id="btnConfirmNo" class="btn btn-ghost">아니요</button>
+      <button id="btnConfirmYes" class="btn btn-danger-solid">예</button>
+    </div>
+  </div>
+</div>
+
+<!-- 엑셀 다운로드 기간 선택 -->
+<div id="exportModal" class="modal">
+  <div class="modal-box">
+    <h2 id="exportTitle">엑셀 다운로드</h2>
+    <p id="exportDesc" class="modal-desc"></p>
+    <div class="settings-row"><label>시작월</label><select id="exportStart" class="modal-select"></select></div>
+    <div class="settings-row"><label>종료월</label><select id="exportEnd" class="modal-select"></select></div>
+    <p id="exportMsg" class="modal-err"></p>
+    <div class="modal-actions">
+      <button id="btnExportClose" class="btn btn-ghost">닫기</button>
+      <button id="btnExportRun" class="btn btn-primary">다운로드</button>
+    </div>
+  </div>
+</div>
+
+<!-- 기준 설정 -->
+<div id="settingsModal" class="modal">
+  <div class="modal-box">
+    <h2>기준 설정</h2>
+    <div class="settings-row"><label>적용 월</label><select id="settingsMonth" class="modal-select"></select></div>
+    <div id="settingsForm"></div>
+    <div class="modal-actions">
+      <button id="btnSettingsClose" class="btn btn-ghost">닫기</button>
+      <button id="btnSettingsSave" class="btn btn-primary">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- 담당자 설정 -->
+<div id="assigneeModal" class="modal">
+  <div class="modal-box modal-box-wide">
+    <h2>담당자 설정</h2>
+    <p class="modal-desc">기획 / 디자인 / 퍼블 / GA 담당자 코드를 추가·삭제·이름변경할 수 있습니다. 이름을 바꾸면 이미 입력된 업무의 완료처리자도 함께 바뀝니다. 저장을 눌러야 반영됩니다.</p>
+    <div id="assigneeForm" class="assignee-form"></div>
+    <div class="modal-actions">
+      <button id="btnAssigneeClose" class="btn btn-ghost">닫기</button>
+      <button id="btnAssigneeSave" class="btn btn-primary">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- 분류 설정 -->
+<div id="categoryModal" class="modal">
+  <div class="modal-box modal-box-xwide">
+    <h2>분류 설정</h2>
+    <p class="modal-desc">대분류 → 중분류를 선택하면 오른쪽에서 하위 분류를 편집할 수 있습니다. 저장을 눌러야 반영됩니다.</p>
+    <div id="categoryForm" class="category-form"></div>
+    <div class="modal-actions">
+      <button id="btnCategoryReset" class="btn btn-ghost" style="margin-right:auto">기본값으로</button>
+      <button id="btnCategoryClose" class="btn btn-ghost">닫기</button>
+      <button id="btnCategorySave" class="btn btn-primary">저장</button>
+    </div>
+  </div>
+</div>
+
+<script src="config.js?v=20261029b"></script>
+<script src="xlsx.js?v=20261029b"></script>
+<script src="detail.js?v=20261106a"></script>
+</body>
+</html>
