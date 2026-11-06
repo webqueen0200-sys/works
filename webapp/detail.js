@@ -1,7 +1,8 @@
 // ============================================================
 // detail.js — 업무상세내역 (detail.html)
 // - 로그인 사용자별로 본인 업무만 입력 · 조회 (서버가 사용자별로 분리 저장)
-// - 관리자: 대시보드, 전체 엑셀 다운로드, 담당자 · 분류 · 기준 설정, 탭 삭제
+// - 관리자: 대시보드, 전체 엑셀 다운로드, 담당자 · 분류 · 기준 설정
+// - 저장 단위: 처리일 기준 월(YYYYMM) — 목록 상단 월 탭은 데이터가 있는 월로 자동 생성
 // - 서버: works-beige API 를 ?ns=detail 로 호출 (api/_detail.js 참고)
 // ============================================================
 (function () {
@@ -70,20 +71,24 @@
   }
 
   // ---------- 상태 ----------
+  // 저장 단위: 월(YYYYMM)별 · 사용자별 (서버 키 detail:tasks:<YYYYMM>:<메일>)
   const S = {
     user: null, isAdmin: false,
-    tabs: [], tab: null,
-    own: {},                  // { 탭명: [업무] } — 본인 데이터 (모든 탭)
-    all: null,                // { 탭명: [업무] } — 관리자 전체 데이터 (필요할 때 불러옴)
+    months: [],               // 서버에 데이터가 있는 월 목록 (detail:months, 모든 사용자 공통)
+    own: {},                  // { YYYYMM: [업무] } — 본인 데이터
+    all: null,                // { YYYYMM: [업무] } — 관리자 전체 데이터 (필요할 때 불러옴)
     users: {},                // 메일 → 이름 (관리자)
     assignees: JSON.parse(JSON.stringify(DEFAULT_ASSIGNEES)),
     cats: defaultCategories(),
     favs: [],
     settingsCache: {},
-    view: "entry",
-    search: null,             // { start, end } — 업무 목록 기간 조회 중
-    editing: null,            // { id, tab }
-    selected: new Set()
+    view: "list",             // list | summary | dashboard
+    viewMonth: null,          // 목록에 보이는 월 탭
+    search: null,             // { start, end } — 기간 조회 중
+    sortAsc: false,           // 처리일 정렬 (기본: 최신순)
+    editing: null,            // { month, id, draft } — 목록에서 바로 수정 중
+    selected: new Set(),
+    monthTouched: false       // 입력 영역의 '월'을 직접 고쳤는지
   };
 
   // ---------- 공통 유틸 ----------
@@ -95,27 +100,27 @@
   const fmt2 = (v) => num(v).toFixed(2);
   const fmtH = (min) => { const h = min / 60; return Number.isInteger(h) ? String(h) : h.toFixed(1); };
   const toMM = (min) => min / 60 / MM_H;
+  const isMonthKey = (m) => /^\d{6}$/.test(String(m || ""));
 
-  function nowMonth() { const d = new Date(); return `${d.getFullYear()}.${pad(d.getMonth() + 1)}`; }
+  function nowMonth() { const d = new Date(); return `${d.getFullYear()}${pad(d.getMonth() + 1)}`; }
   function today() { const d = new Date(); return `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())}`; }
   function addMonths(ym, n) {
-    const [y, m] = ym.split(".").map(Number);
-    const d = new Date(y, m - 1 + n, 1);
-    return `${d.getFullYear()}.${pad(d.getMonth() + 1)}`;
+    const d = new Date(+ym.slice(0, 4), +ym.slice(4) - 1 + n, 1);
+    return `${d.getFullYear()}${pad(d.getMonth() + 1)}`;
   }
   function monthsBetween(a, b) {
     const out = []; let cur = a;
     while (cur <= b && out.length < 120) { out.push(cur); cur = addMonths(cur, 1); }
     return out;
   }
-  // "2026.11" "2026-11" "202611" "2026.1" → "2026.11"
+  // "202611" "2026.11" "2026-11" "2026.1" → "202611"
   function parseMonth(text) {
     const s = String(text || "").trim();
-    let m = /^(\d{4})[.\-/년\s]*(\d{1,2})월?$/.exec(s);
+    const m = /^(\d{4})[.\-/년\s]*(\d{1,2})월?$/.exec(s);
     if (!m) return null;
     const mo = +m[2];
     if (mo < 1 || mo > 12) return null;
-    return `${m[1]}.${pad(mo)}`;
+    return `${m[1]}${pad(mo)}`;
   }
   // "2026.11.06" "2026-11-06" "20261106" "11/06" "11.6" → "2026.11.06"
   function parseDate(text, baseYear) {
@@ -128,8 +133,16 @@
     if (dt.getFullYear() !== y || dt.getMonth() !== mo - 1 || dt.getDate() !== d) return null;
     return `${y}.${pad(mo)}.${pad(d)}`;
   }
+  const monthOfDate = (d) => (d ? d.slice(0, 4) + d.slice(5, 7) : "");
   const dotToIso = (s) => (s || "").replace(/\./g, "-");
   const isoToDot = (s) => (s || "").replace(/-/g, ".");
+  const settingsKey = (m) => `${m.slice(0, 4)}.${m.slice(4)}`;   // 기준 설정 저장 키 (YYYY.MM)
+
+  // 예전 형식(2026.11)으로 저장된 값도 YYYYMM 으로 맞춥니다.
+  function normRec(t) {
+    const month = parseMonth(t.month) || monthOfDate(parseDate(t.date)) || "";
+    return Object.assign({}, t, { month });
+  }
 
   function roleOf(name) {
     const n = String(name || "").trim();
@@ -166,15 +179,26 @@
   }
   function savedNow() { const d = new Date(); setSaveStatus("ok", `저장됨 ${pad(d.getHours())}:${pad(d.getMinutes())}`); }
 
-  // 탭별 본인 목록 저장 (같은 탭 저장은 순서대로 처리)
+  // 월 목록에 없는 월이면 추가 저장 (다른 사용자가 추가한 월과 합칩니다)
+  async function ensureMonths(list) {
+    const need = list.filter((m) => isMonthKey(m) && !S.months.includes(m));
+    if (!need.length) return;
+    let cur = S.months;
+    try { cur = (await api("/api/months")).months || cur; } catch (e) { /* 그대로 */ }
+    const next = [...new Set([...cur, ...need])].sort();
+    await api("/api/months", { method: "POST", body: { months: next } });
+    S.months = next;
+  }
+
+  // 월별 본인 목록 저장 (같은 월 저장은 순서대로 처리)
   const putChain = {};
-  function putOwn(tab, user) {
+  function putOwn(month) {
     const run = async () => {
       setSaveStatus("saving", "저장 중…");
       try {
-        const body = { month: tab, tasks: S.own[tab] || [] };
-        const r = await api("/api/tasks", { method: "PUT", body });
-        S.own[tab] = r.tasks || [];
+        await ensureMonths([month]);
+        const r = await api("/api/tasks", { method: "PUT", body: { month, tasks: S.own[month] || [] } });
+        S.own[month] = (r.tasks || []).map(normRec);
         S.all = null;           // 관리자 집계는 다시 불러오도록
         savedNow();
       } catch (e) {
@@ -183,23 +207,26 @@
         throw e;
       }
     };
-    putChain[tab] = (putChain[tab] || Promise.resolve()).catch(() => {}).then(run);
-    return putChain[tab];
+    putChain[month] = (putChain[month] || Promise.resolve()).catch(() => {}).then(run);
+    return putChain[month];
   }
 
-  async function loadOwnTab(tab) {
-    const r = await api(`/api/tasks?month=${encodeURIComponent(tab)}`);
-    S.own[tab] = r.tasks || [];
+  async function loadOwnMonth(m) {
+    const r = await api(`/api/tasks?month=${encodeURIComponent(m)}`);
+    S.own[m] = (r.tasks || []).map(normRec);
   }
-  async function loadOwnAll() { await Promise.all(S.tabs.map(loadOwnTab)); }
+  async function loadOwnAll() {
+    S.own = {};
+    await Promise.all(S.months.filter(isMonthKey).map(loadOwnMonth));
+  }
 
   async function loadAllData(force) {
     if (!S.isAdmin) return null;
     if (S.all && !force) return S.all;
     const out = {};
-    await Promise.all(S.tabs.map(async (tab) => {
-      const r = await api(`/api/tasks?month=${encodeURIComponent(tab)}&scope=all`);
-      out[tab] = r.tasks || [];
+    await Promise.all(S.months.filter(isMonthKey).map(async (m) => {
+      const r = await api(`/api/tasks?month=${encodeURIComponent(m)}&scope=all`);
+      out[m] = (r.tasks || []).map(normRec);
     }));
     try {
       // auth API 는 auth.js 가 토큰을 자동으로 붙이지 않으므로 직접 붙입니다.
@@ -214,10 +241,55 @@
   async function getSettings(month) {
     if (S.settingsCache[month]) return S.settingsCache[month];
     let s = null;
-    try { s = (await api(`/api/settings?month=${encodeURIComponent(month)}`)).settings; } catch (e) { s = null; }
+    try { s = (await api(`/api/settings?month=${encodeURIComponent(settingsKey(month))}`)).settings; } catch (e) { s = null; }
     const target = Object.assign({}, DEFAULT_TARGET, (s && s.targetMM) || {});
     S.settingsCache[month] = { targetMM: target, workDays: (s && s.workDays) || 20 };
     return S.settingsCache[month];
+  }
+
+  // ---------- 이전 방식(탭 이름: 세부업무_N월) 데이터를 월(YYYYMM)별로 옮기기 ----------
+  async function migrateLegacy() {
+    const legacy = S.months.filter((m) => !isMonthKey(m));
+    if (!legacy.length) return;
+    const me = String((S.user && S.user.email) || "").toLowerCase();
+    // { 메일: [업무] }
+    const byUser = {};
+    for (const tab of legacy) {
+      try {
+        const list = S.isAdmin
+          ? (await api(`/api/tasks?month=${encodeURIComponent(tab)}&scope=all`)).tasks || []
+          : ((await api(`/api/tasks?month=${encodeURIComponent(tab)}`)).tasks || []).map((t) => Object.assign({}, t, { createdBy: me }));
+        list.forEach((t) => { const u = t.createdBy || me; (byUser[u] = byUser[u] || []).push(normRec(t)); });
+      } catch (e) { console.warn("이전 데이터 확인 실패", tab, e); }
+    }
+    const users = Object.keys(byUser);
+    if (users.length) {
+      const months = [...new Set(users.flatMap((u) => byUser[u].map((t) => t.month)).filter(isMonthKey))];
+      await ensureMonths(months);
+      for (const u of users) {
+        const isMe = u === me;
+        const byMonth = {};
+        byUser[u].forEach((t) => { if (isMonthKey(t.month)) (byMonth[t.month] = byMonth[t.month] || []).push(t); });
+        for (const m of Object.keys(byMonth)) {
+          const cur = isMe
+            ? ((await api(`/api/tasks?month=${m}`)).tasks || [])
+            : ((await api(`/api/tasks?month=${m}&scope=all`)).tasks || []).filter((t) => t.createdBy === u);
+          const ids = new Set(cur.map((t) => t.id));
+          const merged = cur.concat(byMonth[m].filter((t) => !ids.has(t.id)));
+          await api("/api/tasks", { method: "PUT", body: isMe ? { month: m, tasks: merged } : { month: m, user: u, tasks: merged } });
+        }
+        // 옮긴 뒤 이전 위치는 비웁니다.
+        for (const tab of legacy) {
+          await api("/api/tasks", { method: "PUT", body: isMe ? { month: tab, tasks: [] } : { month: tab, user: u, tasks: [] } }).catch(() => {});
+        }
+      }
+    }
+    // 관리자는 모든 사용자 데이터를 옮겼으므로 월 목록에서 이전 탭 이름을 지웁니다.
+    if (S.isAdmin) {
+      const next = S.months.filter(isMonthKey);
+      await api("/api/months", { method: "POST", body: { months: next } });
+      S.months = next;
+    }
   }
 
   // ---------- 초기화 ----------
@@ -227,7 +299,6 @@
     S.isAdmin = !!(user && user.admin);
     document.body.classList.toggle("is-admin", S.isAdmin);
     bindControls();
-    resetForm();
     setSaveStatus("saving", "불러오는 중…");
 
     try {
@@ -237,7 +308,7 @@
         api("/api/categories").catch(() => null),
         api("/api/settings?month=favorites").catch(() => null)
       ]);
-      S.tabs = (months.months || []).filter(Boolean);
+      S.months = (months.months || []).filter(Boolean);
       // 담당자: 이 화면에서 저장한 적이 없으면 업무관리에 등록된 담당자를 그대로 사용
       let asgVal = asg && asg.stored ? asg.assignees : null;
       if (!asgVal) { try { asgVal = (await api("/api/assignees", null, true)).assignees; } catch (e) { asgVal = null; } }
@@ -245,26 +316,20 @@
       if (cat && cat.stored && cat.categories && Array.isArray(cat.categories.majors)) S.cats = normCats(cat.categories);
       S.favs = (fav && fav.settings && Array.isArray(fav.settings.items)) ? fav.settings.items : [];
 
-      if (!S.tabs.length) {
-        S.tabs = [`세부업무_${new Date().getMonth() + 1}월`];
-        await api("/api/months", { method: "POST", body: { months: S.tabs } });
-      }
-      const cur = `_${new Date().getMonth() + 1}월`;
-      S.tab = S.tabs.find((t) => t.endsWith(cur)) || S.tabs[S.tabs.length - 1];
+      try { await migrateLegacy(); } catch (e) { console.warn("이전 데이터 이전 실패", e); }
       await loadOwnAll();
       setSaveStatus("", "");
     } catch (e) {
       console.error(e);
       setSaveStatus("error", "불러오기 실패 (클릭)");
       $("saveStatus").title = e.message;
-      if (!S.tabs.length) S.tabs = [`세부업무_${new Date().getMonth() + 1}월`];
-      if (!S.tab) S.tab = S.tabs[S.tabs.length - 1];
     }
-    fillWorkerList();
+    S.viewMonth = nowMonth();
+    fillWorker();
     fillMajor();
+    resetForm(false);
     renderFavs();
     buildPeriodSelects();
-    renderTabs();
     renderAll();
   }
 
@@ -273,91 +338,6 @@
     out.majors.forEach((m) => { out.minors[m] = Array.isArray(c.minors && c.minors[m]) ? [...c.minors[m]] : []; });
     Object.entries(c.subs || {}).forEach(([k, v]) => { out.subs[k] = Array.isArray(v) ? [...v] : []; });
     return out;
-  }
-
-  // ---------- 탭 ----------
-  function renderTabs() {
-    const wrap = $("monthTabs");
-    wrap.innerHTML = "";
-    S.tabs.forEach((t) => {
-      const w = document.createElement("span");
-      w.className = "month-tab-wrap";
-      const b = document.createElement("button");
-      b.className = "month-tab" + (t === S.tab && !S.search ? " active" : "");
-      b.textContent = t;
-      b.onclick = () => switchTab(t);
-      w.appendChild(b);
-      if (S.isAdmin) {
-        const d = document.createElement("button");
-        d.className = "month-tab-del";
-        d.textContent = "✕";
-        d.title = "이 탭 삭제 (관리자)";
-        d.onclick = (e) => { e.stopPropagation(); deleteTab(t); };
-        w.appendChild(d);
-      }
-      wrap.appendChild(w);
-    });
-    const add = document.createElement("button");
-    add.className = "month-tab add";
-    add.textContent = "+ 새 월 시트";
-    add.onclick = openTabModal;
-    wrap.appendChild(add);
-    const sp = document.createElement("span");
-    sp.className = "month-tabs-spacer";
-    wrap.appendChild(sp);
-    if (S.isAdmin) {
-      const a = document.createElement("button");
-      a.className = "month-tab assignee-settings-btn";
-      a.textContent = "담당자 설정";
-      a.onclick = openAssigneeSettings;
-      wrap.appendChild(a);
-    }
-  }
-
-  function switchTab(t) {
-    S.tab = t;
-    S.search = null;
-    S.selected.clear();
-    if (S.editing && S.editing.tab !== t) cancelEdit();
-    renderTabs();
-    if (S.view !== "entry") setView("entry"); else renderAll();
-  }
-
-  function suggestTabName() {
-    const m = new Date().getMonth() + 1;
-    let n = m;
-    for (let i = 0; i < 12 && S.tabs.includes(`세부업무_${n}월`); i++) n = n % 12 + 1;
-    return `세부업무_${n}월`;
-  }
-
-  function openTabModal() {
-    const modal = $("tabModal");
-    const inp = $("tabNameInput");
-    inp.value = suggestTabName();
-    $("tabModalMsg").textContent = "";
-    modal.style.display = "flex";
-    setTimeout(() => { inp.focus(); inp.select(); }, 30);
-    const close = () => { modal.style.display = "none"; };
-    $("btnTabClose").onclick = close;
-    const save = async () => {
-      const name = inp.value.trim();
-      if (!name) { $("tabModalMsg").textContent = "탭 이름을 입력하세요."; return; }
-      if (S.tabs.includes(name)) { $("tabModalMsg").textContent = "이미 있는 탭 이름입니다."; return; }
-      $("btnTabSave").disabled = true;
-      try {
-        const next = [...S.tabs, name];
-        await api("/api/months", { method: "POST", body: { months: next } });
-        S.tabs = next;
-        S.own[name] = [];
-        if (S.all) S.all[name] = [];
-        close();
-        switchTab(name);
-      } catch (e) {
-        $("tabModalMsg").textContent = "저장하지 못했습니다. " + e.message;
-      } finally { $("btnTabSave").disabled = false; }
-    };
-    $("btnTabSave").onclick = save;
-    inp.onkeydown = (e) => { if (e.key === "Enter") save(); if (e.key === "Escape") close(); };
   }
 
   // 빨간 글씨 확인창 (예 → resolve(true))
@@ -376,44 +356,78 @@
     });
   }
 
-  async function deleteTab(tab) {
-    if (!S.isAdmin) return;
-    const ok = await confirmDanger(`'${tab}' 탭 삭제`, "삭제하면 복구할 수 없습니다. 삭제하시겠습니까?");
+  // ---------- 월 탭 (목록 상단) ----------
+  // 본인 업무가 있는 월 + 현재 월 + 보고 있는 월
+  function tabMonths() {
+    const set = new Set([nowMonth()]);
+    if (S.viewMonth) set.add(S.viewMonth);
+    Object.entries(S.own).forEach(([m, list]) => { if (list.length) set.add(m); });
+    return [...set].filter(isMonthKey).sort();
+  }
+  function renderTabs() {
+    const wrap = $("monthTabs");
+    wrap.innerHTML = "";
+    tabMonths().forEach((m) => {
+      const n = (S.own[m] || []).length;
+      const w = document.createElement("span");
+      w.className = "month-tab-wrap";
+      const b = document.createElement("button");
+      b.className = "month-tab" + (m === S.viewMonth && !S.search ? " active" : "");
+      b.innerHTML = `${m}<span class="tab-cnt">${n}</span>`;
+      b.title = `${m.slice(0, 4)}년 ${+m.slice(4)}월 업무 ${n}건`;
+      b.onclick = () => switchMonth(m);
+      w.appendChild(b);
+      if (n) {
+        const d = document.createElement("button");
+        d.className = "month-tab-del";
+        d.textContent = "✕";
+        d.title = `${m} 내 업무 모두 삭제`;
+        d.onclick = (e) => { e.stopPropagation(); deleteMonth(m); };
+        w.appendChild(d);
+      }
+      wrap.appendChild(w);
+    });
+  }
+  function switchMonth(m) {
+    S.viewMonth = m;
+    S.search = null;
+    S.selected.clear();
+    S.editing = null;
+    if (S.view !== "list") setView("list"); else { renderTabs(); renderList(); }
+  }
+  async function deleteMonth(m) {
+    const n = (S.own[m] || []).length;
+    const ok = await confirmDanger(`${m} 탭 삭제 (${n}건)`, "삭제하면 복구할 수 없습니다. 삭제하시겠습니까?");
     if (!ok) return;
+    const backup = S.own[m];
+    S.own[m] = [];
     try {
-      setSaveStatus("saving", "삭제 중…");
-      await api(`/api/tasks?month=${encodeURIComponent(tab)}`, { method: "DELETE" });
-      let next = S.tabs.filter((t) => t !== tab);
-      if (!next.length) next = [`세부업무_${new Date().getMonth() + 1}월`];
-      await api("/api/months", { method: "POST", body: { months: next } });
-      S.tabs = next;
-      delete S.own[tab];
-      if (S.all) delete S.all[tab];
-      next.forEach((t) => { if (!S.own[t]) S.own[t] = []; });
-      savedNow();
-      if (S.editing && S.editing.tab === tab) cancelEdit();
-      switchTab(S.tab === tab ? next[next.length - 1] : S.tab);
+      await putOwn(m);
+      if (S.viewMonth === m) S.viewMonth = nowMonth();
+      S.editing = null;
+      S.selected.clear();
+      renderTabs(); renderList(); updateDayMeter();
     } catch (e) {
-      setSaveStatus("error", "삭제 실패 (클릭)");
-      $("saveStatus").title = e.message;
-      alert("탭을 삭제하지 못했습니다.\n" + e.message);
+      S.own[m] = backup;
+      alert("삭제하지 못했습니다.\n" + e.message);
     }
   }
 
   // ---------- 화면 전환 ----------
   function setView(v) {
-    if (v === "dashboard" && !S.isAdmin) v = "entry";
+    if (v === "dashboard" && !S.isAdmin) v = "list";
     S.view = v;
-    $("entryPanel").style.display = v === "entry" ? "" : "none";
+    $("listPanel").style.display = v === "list" ? "" : "none";
     $("summaryPanel").style.display = v === "summary" ? "" : "none";
     $("dashboardPanel").style.display = v === "dashboard" ? "" : "none";
-    $("btnEntryView").classList.toggle("active", v === "entry");
+    $("btnListView").classList.toggle("active", v === "list");
     $("btnSummaryView").classList.toggle("active", v === "summary");
     $("btnDashboardView").classList.toggle("active", v === "dashboard");
     renderAll();
   }
   function renderAll() {
-    if (S.view === "entry") { renderEntryMeta(); renderList(); updateDayMeter(); }
+    updateDayMeter();
+    if (S.view === "list") { renderTabs(); renderList(); }
     if (S.view === "summary") renderSummary();
     if (S.view === "dashboard") renderDashboard();
   }
@@ -423,7 +437,7 @@
     const set = new Set();
     const cur = nowMonth();
     monthsBetween(addMonths(cur, -12), addMonths(cur, 2)).forEach((m) => set.add(m));
-    Object.values(S.own).forEach((list) => list.forEach((t) => { if (parseMonth(t.month)) set.add(t.month); }));
+    S.months.filter(isMonthKey).forEach((m) => set.add(m));
     return [...set].sort();
   }
   function fillMonthSelect(sel, value) {
@@ -444,57 +458,84 @@
   }
   function runSearch() {
     const p = period();
-    if (S.view === "entry") {
+    if (S.view === "list") {
       S.search = p;
       S.selected.clear();
+      S.editing = null;
       renderTabs();
       renderList();
     } else renderAll();
   }
-  function clearSearch() { S.search = null; S.selected.clear(); renderTabs(); renderList(); }
+  function clearSearch() { S.search = null; S.selected.clear(); S.editing = null; renderTabs(); renderList(); }
 
   // ---------- 입력 폼 ----------
-  function fillWorkerList() {
-    $("workerList").innerHTML = ROLES.flatMap((r) => S.assignees[r] || []).map((n) => `<option value="${esc(n)}"></option>`).join("");
+  function workerNames() {
+    const names = ROLES.flatMap((r) => S.assignees[r] || []);
+    const me = (S.user && S.user.name) || "";
+    return { names, me };
   }
-  function fillSelect(sel, items, value, placeholder) {
+  // 완료처리자 드롭다운 (역할별 그룹, 기본값: 로그인 사용자명)
+  function workerOptionsHtml(selected) {
+    const { me } = workerNames();
+    const all = ROLES.flatMap((r) => S.assignees[r] || []);
+    let html = "";
+    const extra = [me, selected].filter((v, i, a) => v && !all.includes(v) && a.indexOf(v) === i);
+    if (extra.length) html += extra.map((v) => `<option value="${esc(v)}">${esc(v)}</option>`).join("");
+    ROLES.forEach((r) => {
+      const list = S.assignees[r] || [];
+      if (list.length) html += `<optgroup label="${r}">${list.map((v) => `<option value="${esc(v)}">${esc(v)}</option>`).join("")}</optgroup>`;
+    });
+    return html;
+  }
+  function fillWorker(value) {
+    const sel = $("fWorker");
+    const v = value || sel.value || (S.user && S.user.name) || "";
+    sel.innerHTML = workerOptionsHtml(v);
+    sel.value = v;
+  }
+  function selectOptions(items, value, placeholder) {
     const list = [...items];
     if (value && !list.includes(value)) list.push(value); // 분류가 바뀌었어도 기존 값은 유지
-    sel.innerHTML = `<option value="">${placeholder}</option>` + list.map((v) => `<option value="${esc(v)}">${esc(v)}</option>`).join("");
-    sel.value = value || "";
+    return `<option value="">${placeholder}</option>` + list.map((v) => `<option value="${esc(v)}"${v === value ? " selected" : ""}>${esc(v)}</option>`).join("");
   }
+  const minorsOf = (ma) => (ma ? S.cats.minors[ma] || [] : []);
+  const subsOf = (ma, mi) => (ma && mi ? S.cats.subs[subKey(ma, mi)] || [] : []);
   function fillMajor(value, minor, sub) {
-    fillSelect($("fMajor"), S.cats.majors, value || "", "대분류 선택");
+    $("fMajor").innerHTML = selectOptions(S.cats.majors, value || "", "대분류");
     fillMinor(minor, sub);
   }
   function fillMinor(value, sub) {
     const ma = $("fMajor").value;
-    fillSelect($("fMinor"), ma ? (S.cats.minors[ma] || []) : [], value || "", ma ? "중분류 선택" : "대분류 먼저 선택");
+    $("fMinor").innerHTML = selectOptions(minorsOf(ma), value || "", ma ? "중분류" : "대분류 먼저");
     fillSub(sub);
   }
   function fillSub(value) {
     const ma = $("fMajor").value, mi = $("fMinor").value;
-    const subs = ma && mi ? (S.cats.subs[subKey(ma, mi)] || []) : [];
-    fillSelect($("fSub"), subs, value || "", mi ? (subs.length ? "소분류 선택" : "소분류 없음") : "중분류 먼저 선택");
+    const subs = subsOf(ma, mi);
+    $("fSub").innerHTML = selectOptions(subs, value || "", mi ? (subs.length ? "소분류" : "소분류 없음") : "중분류 먼저");
     if (!value && subs.length === 1) $("fSub").value = subs[0];   // 하나뿐이면 자동 선택
     updateFavToggle();
   }
   function setCategory(ma, mi, su) { fillMajor(ma, mi, su); }
 
-  function resetForm(keep) {
-    $("fMonth").value = keep ? $("fMonth").value || nowMonth() : nowMonth();
-    $("fWorker").value = keep ? $("fWorker").value : (S.user && S.user.name) || "";
-    $("fDate").value = keep ? $("fDate").value || today() : today();
-    $("fMinutes").value = "";
-    $("fTitle").value = "";
-    if (!keep) fillMajor();
-    ["fMonth", "fDate", "fMinutes", "fTitle", "fWorker"].forEach((id) => $(id).classList.remove("is-invalid"));
-    updateCounter();
-    updateDayMeter();
+  function syncMonthFromDate() {
+    const d = parseDate($("fDate").value);
+    if (d) { $("fMonth").value = monthOfDate(d); S.monthTouched = false; }
   }
 
-  function renderEntryMeta() {
-    $("entryTabLabel").textContent = S.editing ? `저장 위치: ${S.editing.tab}` : `저장 위치: ${S.tab}`;
+  // keep=true: 저장 직후 — 처리일 · 분류 · 완료처리자는 그대로 두고 업무명 · 시간만 비웁니다.
+  function resetForm(keep) {
+    if (!keep) {
+      $("fDate").value = today();
+      fillWorker((S.user && S.user.name) || "");
+      fillMajor();
+    }
+    syncMonthFromDate();
+    $("fMinutes").value = "";
+    $("fTitle").value = "";
+    ["fMonth", "fDate", "fMinutes", "fTitle", "fWorker", "fMajor", "fMinor"].forEach((id) => $(id).classList.remove("is-invalid"));
+    updateCounter();
+    updateDayMeter();
   }
 
   function updateCounter() {
@@ -504,7 +545,7 @@
     c.classList.toggle("is-full", n >= TITLE_MAX);
   }
 
-  // 처리일 기준 같은 날짜에 입력한 처리소요시간 합계 (본인 · 모든 탭)
+  // 처리일 기준 같은 날짜에 입력한 처리소요시간 합계 (본인 · 모든 월)
   function minutesOnDate(date, excludeId) {
     let sum = 0;
     Object.values(S.own).forEach((list) => list.forEach((t) => {
@@ -514,7 +555,7 @@
   }
   function updateDayMeter() {
     const date = parseDate($("fDate").value);
-    const base = date ? minutesOnDate(date, S.editing && S.editing.id) : 0;
+    const base = date ? minutesOnDate(date) : 0;
     const total = base + (parseInt($("fMinutes").value, 10) || 0);
     $("dayMeterText").textContent = `${total}분/${DAY_LIMIT}분`;
     $("dayMeterFill").style.width = Math.min(100, total / DAY_LIMIT * 100) + "%";
@@ -531,100 +572,268 @@
     if (text && !isErr) setTimeout(() => { if (el.textContent === text) el.textContent = ""; }, 3000);
   }
 
-  function readForm() {
-    const errs = [];
-    const mark = (id, bad) => $(id).classList.toggle("is-invalid", !!bad);
-    const month = parseMonth($("fMonth").value);
-    mark("fMonth", !month); if (!month) errs.push("월(YYYY.MM)");
-    const title = $("fTitle").value.trim();
-    mark("fTitle", !title); if (!title) errs.push("업무명");
-    const worker = $("fWorker").value.trim();
-    mark("fWorker", !worker); if (!worker) errs.push("완료처리자");
-    const date = parseDate($("fDate").value);
-    mark("fDate", !date); if (!date) errs.push("처리일(YYYY.MM.DD)");
-    const minRaw = $("fMinutes").value.trim();
+  // 입력값 검사 (입력 영역 · 목록 수정 공통) → { errs, rec, bad:{필드:true} }
+  function validate(v) {
+    const errs = [], bad = {};
+    const date = parseDate(v.date);
+    if (!date) { errs.push("처리일(YYYY.MM.DD)"); bad.date = 1; }
+    const minRaw = String(v.minutes == null ? "" : v.minutes).trim();
     const minutes = parseInt(minRaw, 10);
-    const minBad = !/^\d{1,4}$/.test(minRaw) || minutes <= 0;
-    mark("fMinutes", minBad); if (minBad) errs.push("처리소요시간(분)");
-    const major = $("fMajor").value, minor = $("fMinor").value, sub = $("fSub").value;
-    if (!major || !minor) errs.push("대분류 · 중분류");
-    if (month) $("fMonth").value = month;
-    if (date) $("fDate").value = date;
-    return { errs, rec: { month, title: title.slice(0, TITLE_MAX), worker, date, minutes, count: 1, major, minor, sub } };
+    if (!/^\d{1,4}$/.test(minRaw) || minutes <= 0) { errs.push("소요시간(분)"); bad.minutes = 1; }
+    const title = String(v.title || "").trim();
+    if (!title) { errs.push("업무명"); bad.title = 1; }
+    if (!v.major || !v.minor) { errs.push("대분류 · 중분류"); bad.major = !v.major; bad.minor = !v.minor; }
+    const month = parseMonth(v.month) || (date ? monthOfDate(date) : null);
+    if (!month) { errs.push("월(YYYYMM)"); bad.month = 1; }
+    const worker = String(v.worker || "").trim();
+    if (!worker) { errs.push("완료처리자"); bad.worker = 1; }
+    return { errs, bad, rec: { month, title: title.slice(0, TITLE_MAX), worker, date, minutes, count: 1, major: v.major, minor: v.minor, sub: v.sub || "" } };
+  }
+
+  async function confirmDayLimit(date, minutes, excludeId) {
+    const total = minutesOnDate(date, excludeId) + minutes;
+    return total <= DAY_LIMIT || confirm(`${date} 처리소요시간 합계가 ${total}분으로 ${DAY_LIMIT}분을 넘습니다.\n그래도 저장할까요?`);
   }
 
   async function saveEntry() {
-    const { errs, rec } = readForm();
+    const { errs, bad, rec } = validate({
+      date: $("fDate").value, minutes: $("fMinutes").value, title: $("fTitle").value,
+      major: $("fMajor").value, minor: $("fMinor").value, sub: $("fSub").value,
+      month: $("fMonth").value, worker: $("fWorker").value
+    });
+    const map = { date: "fDate", minutes: "fMinutes", title: "fTitle", major: "fMajor", minor: "fMinor", month: "fMonth", worker: "fWorker" };
+    Object.entries(map).forEach(([k, id]) => $(id).classList.toggle("is-invalid", !!bad[k]));
     if (errs.length) { msg(`입력값을 확인하세요: ${errs.join(", ")}`, true); return; }
-    const editing = S.editing;
-    const dayTotal = minutesOnDate(rec.date, editing && editing.id) + rec.minutes;
-    if (dayTotal > DAY_LIMIT && !confirm(`${rec.date} 처리소요시간 합계가 ${dayTotal}분으로 ${DAY_LIMIT}분을 넘습니다.\n그래도 저장할까요?`)) return;
+    $("fDate").value = rec.date;
+    $("fMonth").value = rec.month;
+    if (!(await confirmDayLimit(rec.date, rec.minutes))) return;
 
     const btn = $("btnEntrySave");
     btn.disabled = true;
+    const m = rec.month;
+    S.own[m] = S.own[m] || [];
+    const backup = S.own[m].slice();
     const now = new Date().toISOString();
-    let tab, backup;
+    S.own[m].push(Object.assign({ id: uid(), createdAt: now, updatedAt: now }, rec));
     try {
-      if (editing) {
-        tab = editing.tab;
-        const list = S.own[tab] || [];
-        const i = list.findIndex((t) => t.id === editing.id);
-        if (i < 0) throw new Error("수정할 업무를 찾지 못했습니다. 새로고침 후 다시 시도하세요.");
-        backup = list.slice();
-        list[i] = Object.assign({}, list[i], rec, { updatedAt: now });
-      } else {
-        tab = S.tab;
-        S.own[tab] = S.own[tab] || [];
-        backup = S.own[tab].slice();
-        S.own[tab].push(Object.assign({ id: uid(), createdAt: now, updatedAt: now }, rec));
-      }
-      await putOwn(tab);
-      msg(editing ? "수정했습니다." : "저장했습니다. 목록에 추가되었습니다.");
-      if (editing) { S.editing = null; setEditUi(false); resetForm(true); }
-      else resetForm(true);
+      await putOwn(m);
+      msg(`저장했습니다. (${m} 목록)`);
+      resetForm(true);
       buildPeriodSelects();
-      renderList();
-      renderEntryMeta();
+      // 저장한 월의 목록을 보여줍니다 (새 월이면 탭이 추가됨)
+      S.viewMonth = m; S.search = null; S.editing = null;
+      if (S.view === "list") { renderTabs(); renderList(); }
       $("fTitle").focus();
     } catch (e) {
-      if (tab && backup) S.own[tab] = backup;
+      S.own[m] = backup;
       msg("저장하지 못했습니다. " + e.message, true);
-      renderList();
     } finally { btn.disabled = false; }
   }
 
-  function setEditUi(on) {
-    $("entryCard").classList.toggle("is-editing", on);
-    $("entryEditBadge").style.display = on ? "" : "none";
-    $("btnEntryCancel").style.display = on ? "" : "none";
-    $("btnEntryReset").style.display = on ? "none" : "";
-    $("btnEntrySave").textContent = on ? "수정 저장" : "저장";
-    $("entryTitle").textContent = on ? "업무 수정" : "업무 입력";
-    renderEntryMeta();
+  // ---------- 업무 목록 ----------
+  function listRecords() {
+    let rows = [];
+    if (S.search) {
+      Object.entries(S.own).forEach(([m, list]) => list.forEach((t) => {
+        if (t.month >= S.search.start && t.month <= S.search.end) rows.push({ t, m });
+      }));
+    } else rows = (S.own[S.viewMonth] || []).map((t) => ({ t, m: S.viewMonth }));
+    const dir = S.sortAsc ? 1 : -1;
+    rows.sort((a, b) => dir * ((a.t.date || "").localeCompare(b.t.date || "") || (a.t.createdAt || "").localeCompare(b.t.createdAt || "")));
+    return rows;
   }
-  function startEdit(tab, id) {
-    const t = (S.own[tab] || []).find((x) => x.id === id);
+  const rowKey = (m, id) => `${m}\u0001${id}`;
+
+  function editRowHtml(r, i) {
+    const d = S.editing.draft;
+    const bad = S.editing.bad || {};
+    const cls = (k) => (bad[k] ? " is-invalid" : "");
+    return `<tr data-k="${esc(rowKey(r.m, r.t.id))}" class="is-editing">
+      <td class="c-chk"></td>
+      <td class="c-no">${i + 1}</td>
+      <td><input type="date" class="e-date${cls("date")}" value="${esc(dotToIso(parseDate(d.date) || ""))}" /></td>
+      <td><input type="text" class="e-min${cls("minutes")}" inputmode="numeric" maxlength="4" value="${esc(d.minutes)}" /></td>
+      <td class="c-title"><input type="text" class="e-title${cls("title")}" maxlength="${TITLE_MAX}" value="${esc(d.title)}" /></td>
+      <td><select class="e-major${cls("major")}">${selectOptions(S.cats.majors, d.major, "대분류")}</select></td>
+      <td><select class="e-minor${cls("minor")}">${selectOptions(minorsOf(d.major), d.minor, "중분류")}</select></td>
+      <td class="c-sub"><select class="e-sub">${selectOptions(subsOf(d.major, d.minor), d.sub, "소분류")}</select></td>
+      <td><input type="text" class="e-month${cls("month")}" inputmode="numeric" maxlength="6" value="${esc(d.month)}" /></td>
+      <td><select class="e-worker${cls("worker")}">${workerOptionsHtml(d.worker)}</select></td>
+      <td>1</td>
+      <td class="c-act"><button type="button" class="row-btn primary e-save">저장</button><button type="button" class="row-btn e-cancel">취소</button></td>
+    </tr>`;
+  }
+
+  function renderList() {
+    const rows = listRecords();
+    $("dateSortMark").textContent = S.sortAsc ? "▲" : "▼";
+    $("listTitle").textContent = S.search ? "업무 목록 · 기간 조회" : `업무 목록 · ${S.viewMonth}`;
+    const chip = $("listSearchChip");
+    if (S.search) {
+      chip.style.display = "";
+      chip.innerHTML = `${S.search.start} ~ ${S.search.end} <button type="button" id="btnClearSearch">해제</button>`;
+      $("btnClearSearch").onclick = clearSearch;
+    } else chip.style.display = "none";
+
+    const keys = new Set(rows.map((r) => rowKey(r.m, r.t.id)));
+    [...S.selected].forEach((k) => { if (!keys.has(k)) S.selected.delete(k); });
+    if (S.editing && !keys.has(rowKey(S.editing.month, S.editing.id))) S.editing = null;
+
+    const totalMin = rows.reduce((a, r) => a + num(r.t.minutes), 0);
+    $("listCount").textContent = `${rows.length}건 · ${totalMin}분 (${fmtH(totalMin)}H)`;
+    const body = $("listBody");
+    if (!rows.length) {
+      body.innerHTML = `<tr class="list-empty"><td colspan="12">${S.search ? "조회 기간에 입력한 업무가 없습니다." : `${S.viewMonth}에 입력한 업무가 없습니다. 위에서 입력하고 저장하세요.`}</td></tr>`;
+    } else {
+      body.innerHTML = rows.map((r, i) => {
+        const t = r.t, k = rowKey(r.m, t.id);
+        if (S.editing && S.editing.id === t.id && S.editing.month === r.m) return editRowHtml(r, i);
+        return `<tr data-k="${esc(k)}" class="${S.selected.has(k) ? "is-selected" : ""}">
+          <td class="c-chk"><input type="checkbox" class="row-chk" ${S.selected.has(k) ? "checked" : ""} aria-label="선택" /></td>
+          <td class="c-no">${i + 1}</td>
+          <td>${esc(t.date)}</td>
+          <td>${num(t.minutes)}</td>
+          <td class="c-title">${esc(t.title)}</td>
+          <td>${esc(t.major)}</td>
+          <td>${esc(t.minor)}</td>
+          <td class="c-sub">${esc(t.sub)}</td>
+          <td>${esc(t.month)}</td>
+          <td>${esc(t.worker)}</td>
+          <td>${t.count || 1}</td>
+          <td class="c-act"><button type="button" class="row-btn row-edit">수정</button></td>
+        </tr>`;
+      }).join("") +
+      `<tr class="list-foot"><td></td><td colspan="2" class="c-title">합계</td><td>${totalMin}</td><td colspan="6"></td><td>${rows.length}</td><td></td></tr>`;
+    }
+    bindListRows(rows);
+    updateSelectionUi(rows);
+  }
+
+  function bindListRows(rows) {
+    $("listBody").querySelectorAll("tr[data-k]").forEach((tr) => {
+      const [m, id] = tr.dataset.k.split("\u0001");
+      if (tr.classList.contains("is-editing")) { bindEditRow(tr); return; }
+      tr.querySelector(".row-chk").onchange = (e) => {
+        if (e.target.checked) S.selected.add(tr.dataset.k); else S.selected.delete(tr.dataset.k);
+        tr.classList.toggle("is-selected", e.target.checked);
+        updateSelectionUi(rows);
+      };
+      tr.querySelector(".row-edit").onclick = () => startEdit(m, id);
+      tr.ondblclick = (e) => { if (!e.target.closest("input,button")) startEdit(m, id); };
+    });
+  }
+
+  function startEdit(m, id) {
+    const t = (S.own[m] || []).find((x) => x.id === id);
     if (!t) return;
-    S.editing = { tab, id };
-    $("fMonth").value = t.month || "";
-    $("fTitle").value = t.title || "";
-    $("fWorker").value = t.worker || "";
-    $("fDate").value = t.date || "";
-    $("fMinutes").value = t.minutes || "";
-    setCategory(t.major, t.minor, t.sub);
-    updateCounter();
-    setEditUi(true);
-    updateDayMeter();
+    S.editing = { month: m, id, draft: { date: t.date, minutes: String(t.minutes || ""), title: t.title, major: t.major, minor: t.minor, sub: t.sub, month: t.month, worker: t.worker }, bad: {} };
     renderList();
-    $("entryCard").scrollIntoView({ behavior: "smooth", block: "start" });
-    $("fTitle").focus();
+    const inp = $("listBody").querySelector("tr.is-editing .e-title");
+    if (inp) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
   }
-  function cancelEdit() {
-    S.editing = null;
-    setEditUi(false);
-    resetForm(true);
+  function cancelEdit() { S.editing = null; renderList(); }
+
+  function bindEditRow(tr) {
+    const d = S.editing.draft;
+    const q = (c) => tr.querySelector(c);
+    q(".e-date").onchange = (e) => {
+      const nd = isoToDot(e.target.value);
+      if (parseMonth(d.month) === monthOfDate(parseDate(d.date))) d.month = monthOfDate(nd);   // 월이 처리일을 따르던 경우 함께 변경
+      d.date = nd;
+      q(".e-month").value = d.month;
+    };
+    q(".e-min").oninput = (e) => { e.target.value = e.target.value.replace(/[^\d]/g, "").slice(0, 4); d.minutes = e.target.value; };
+    q(".e-title").oninput = (e) => { d.title = e.target.value; };
+    q(".e-month").oninput = (e) => { e.target.value = e.target.value.replace(/[^\d]/g, "").slice(0, 6); d.month = e.target.value; };
+    q(".e-worker").onchange = (e) => { d.worker = e.target.value; };
+    q(".e-sub").onchange = (e) => { d.sub = e.target.value; };
+    q(".e-major").onchange = (e) => { d.major = e.target.value; d.minor = ""; d.sub = ""; renderList(); focusEdit(".e-minor"); };
+    q(".e-minor").onchange = (e) => {
+      d.minor = e.target.value;
+      const subs = subsOf(d.major, d.minor);
+      d.sub = subs.length === 1 ? subs[0] : "";
+      renderList(); focusEdit(".e-sub");
+    };
+    q(".e-save").onclick = saveEdit;
+    q(".e-cancel").onclick = cancelEdit;
+    tr.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.isComposing && e.target.tagName === "INPUT") { e.preventDefault(); saveEdit(); }
+      if (e.key === "Escape") cancelEdit();
+    });
+  }
+  function focusEdit(cls) { const el = $("listBody").querySelector("tr.is-editing " + cls); if (el) el.focus(); }
+
+  async function saveEdit() {
+    const ed = S.editing;
+    if (!ed) return;
+    const { errs, bad, rec } = validate(ed.draft);
+    if (errs.length) { ed.bad = bad; renderList(); msg(`목록 수정 값을 확인하세요: ${errs.join(", ")}`, true); return; }
+    if (!(await confirmDayLimit(rec.date, rec.minutes, ed.id))) return;
+    const from = ed.month, to = rec.month;
+    const backupFrom = (S.own[from] || []).slice();
+    const backupTo = (S.own[to] || []).slice();
+    const i = S.own[from].findIndex((t) => t.id === ed.id);
+    if (i < 0) { cancelEdit(); return; }
+    const updated = Object.assign({}, S.own[from][i], rec, { updatedAt: new Date().toISOString() });
+    try {
+      if (from === to) {
+        S.own[from][i] = updated;
+        await putOwn(from);
+      } else {
+        // 월이 바뀌면 해당 월 목록으로 옮깁니다.
+        S.own[from].splice(i, 1);
+        S.own[to] = (S.own[to] || []).concat(updated);
+        await putOwn(to);
+        await putOwn(from);
+      }
+      S.editing = null;
+      msg(from === to ? "수정했습니다." : `수정했습니다. (${to} 목록으로 이동)`);
+      renderTabs(); renderList(); updateDayMeter();
+    } catch (e) {
+      S.own[from] = backupFrom; S.own[to] = backupTo;
+      msg("수정하지 못했습니다. " + e.message, true);
+      renderList();
+    }
+  }
+
+  function updateSelectionUi(rows) {
+    const n = S.selected.size;
+    const btn = $("btnDeleteSelected");
+    btn.disabled = n === 0;
+    btn.textContent = n ? `선택 삭제 (${n})` : "선택 삭제";
+    const all = $("chkAll");
+    all.checked = rows.length > 0 && n === rows.length;
+    all.indeterminate = n > 0 && n < rows.length;
+  }
+  function toggleAll(checked) {
+    S.selected.clear();
+    if (checked) listRecords().forEach((r) => S.selected.add(rowKey(r.m, r.t.id)));
     renderList();
   }
+  async function deleteSelected() {
+    const n = S.selected.size;
+    if (!n) return;
+    const ok = await confirmDanger(`선택한 ${n}건 삭제`, "삭제하면 복구할 수 없습니다. 삭제하시겠습니까?");
+    if (!ok) return;
+    const byMonth = {};
+    [...S.selected].forEach((k) => { const [m, id] = k.split("\u0001"); (byMonth[m] = byMonth[m] || new Set()).add(id); });
+    const backups = {};
+    try {
+      for (const m of Object.keys(byMonth)) {
+        backups[m] = (S.own[m] || []).slice();
+        S.own[m] = backups[m].filter((t) => !byMonth[m].has(t.id));
+        await putOwn(m);
+      }
+      S.selected.clear();
+      S.editing = null;
+      msg(`${n}건을 삭제했습니다.`);
+    } catch (e) {
+      Object.assign(S.own, backups);
+      msg("삭제하지 못했습니다. " + e.message, true);
+    }
+    renderTabs(); renderList(); updateDayMeter();
+  }
+
 
   // ---------- 즐겨찾기 ----------
   const favId = (f) => `${f.major}|${f.minor}|${f.sub || ""}`;
@@ -632,7 +841,7 @@
   function renderFavs() {
     const box = $("favChips");
     if (!S.favs.length) {
-      box.innerHTML = `<span class="fav-empty">분류를 선택하고 ‘☆ 즐겨찾기 추가’를 누르면 여기에 표시됩니다. 한 번 클릭으로 대·중·소분류가 선택됩니다.</span>`;
+      box.innerHTML = `<span class="fav-empty">분류를 선택하고 ☆ 버튼을 누르면 여기에 표시됩니다. 한 번 클릭으로 대·중·소분류가 선택됩니다.</span>`;
       return;
     }
     const cur = favId(currentCat());
@@ -656,7 +865,8 @@
     const on = S.favs.some((f) => favId(f) === favId(c));
     btn.disabled = !(c.major && c.minor);
     btn.classList.toggle("is-on", on);
-    btn.textContent = on ? "★ 즐겨찾기 해제" : "☆ 즐겨찾기 추가";
+    btn.textContent = on ? "★" : "☆";
+    btn.title = on ? "즐겨찾기 해제" : "선택한 분류를 즐겨찾기에 추가";
     if ($("favChips").children.length) renderFavs();
   }
   function toggleFav() {
@@ -677,113 +887,6 @@
     catch (e) { msg("즐겨찾기를 저장하지 못했습니다. " + e.message, true); }
   }
 
-  // ---------- 업무 목록 ----------
-  function listRecords() {
-    let rows;
-    if (S.search) {
-      rows = [];
-      S.tabs.forEach((tab) => (S.own[tab] || []).forEach((t) => {
-        if (t.month >= S.search.start && t.month <= S.search.end) rows.push({ t, tab });
-      }));
-    } else rows = (S.own[S.tab] || []).map((t) => ({ t, tab: S.tab }));
-    rows.sort((a, b) => (b.t.date || "").localeCompare(a.t.date || "") || (b.t.createdAt || "").localeCompare(a.t.createdAt || ""));
-    return rows;
-  }
-  const rowKey = (tab, id) => `${tab}\u0001${id}`;
-
-  function renderList() {
-    const rows = listRecords();
-    const table = $("listTable");
-    table.classList.toggle("is-search", !!S.search);
-    $("listTitle").textContent = S.search ? "업무 목록 · 기간 조회" : `업무 목록 · ${S.tab}`;
-    const chip = $("listSearchChip");
-    if (S.search) {
-      chip.style.display = "";
-      chip.innerHTML = `${S.search.start} ~ ${S.search.end} (모든 탭) <button type="button" id="btnClearSearch">해제</button>`;
-      $("btnClearSearch").onclick = clearSearch;
-    } else chip.style.display = "none";
-
-    // 화면에 없는 선택은 정리
-    const keys = new Set(rows.map((r) => rowKey(r.tab, r.t.id)));
-    [...S.selected].forEach((k) => { if (!keys.has(k)) S.selected.delete(k); });
-
-    const totalMin = rows.reduce((a, r) => a + num(r.t.minutes), 0);
-    $("listCount").textContent = `${rows.length}건 · ${totalMin}분 (${fmtH(totalMin)}H)`;
-    const body = $("listBody");
-    if (!rows.length) {
-      body.innerHTML = `<tr class="list-empty"><td colspan="13">${S.search ? "조회 기간에 입력한 업무가 없습니다." : "아직 입력한 업무가 없습니다. 위에서 입력하고 저장하세요."}</td></tr>`;
-    } else {
-      body.innerHTML = rows.map((r, i) => {
-        const t = r.t, k = rowKey(r.tab, t.id);
-        const editing = S.editing && S.editing.id === t.id && S.editing.tab === r.tab;
-        return `<tr data-k="${esc(k)}" class="${S.selected.has(k) ? "is-selected" : ""}${editing ? " is-editing" : ""}">
-          <td class="c-chk"><input type="checkbox" class="row-chk" ${S.selected.has(k) ? "checked" : ""} aria-label="선택" /></td>
-          <td class="c-no">${i + 1}</td>
-          <td class="c-tab search-only">${esc(r.tab)}</td>
-          <td>${esc(t.month)}</td>
-          <td class="c-title">${esc(t.title)}</td>
-          <td>${esc(t.worker)}</td>
-          <td>${esc(t.date)}</td>
-          <td>${num(t.minutes)}</td>
-          <td>${t.count || 1}</td>
-          <td>${esc(t.major)}</td>
-          <td>${esc(t.minor)}</td>
-          <td class="c-sub">${esc(t.sub)}</td>
-          <td class="c-act"><button type="button" class="row-edit">수정</button></td>
-        </tr>`;
-      }).join("") +
-      `<tr class="list-foot"><td></td><td colspan="${S.search ? 6 : 5}" class="c-title">합계</td><td>${totalMin}</td><td>${rows.length}</td><td colspan="4"></td></tr>`;
-    }
-    body.querySelectorAll("tr[data-k]").forEach((tr) => {
-      const [tab, id] = tr.dataset.k.split("\u0001");
-      tr.querySelector(".row-chk").onchange = (e) => {
-        if (e.target.checked) S.selected.add(tr.dataset.k); else S.selected.delete(tr.dataset.k);
-        tr.classList.toggle("is-selected", e.target.checked);
-        updateSelectionUi(rows);
-      };
-      tr.querySelector(".row-edit").onclick = () => startEdit(tab, id);
-      tr.ondblclick = (e) => { if (!e.target.closest("input,button")) startEdit(tab, id); };
-    });
-    updateSelectionUi(rows);
-  }
-  function updateSelectionUi(rows) {
-    const n = S.selected.size;
-    const btn = $("btnDeleteSelected");
-    btn.disabled = n === 0;
-    btn.textContent = n ? `선택 삭제 (${n})` : "선택 삭제";
-    const all = $("chkAll");
-    all.checked = rows.length > 0 && n === rows.length;
-    all.indeterminate = n > 0 && n < rows.length;
-  }
-  function toggleAll(checked) {
-    S.selected.clear();
-    if (checked) listRecords().forEach((r) => S.selected.add(rowKey(r.tab, r.t.id)));
-    renderList();
-  }
-  async function deleteSelected() {
-    const n = S.selected.size;
-    if (!n) return;
-    const ok = await confirmDanger(`선택한 ${n}건 삭제`, "삭제하면 복구할 수 없습니다. 삭제하시겠습니까?");
-    if (!ok) return;
-    const byTab = {};
-    [...S.selected].forEach((k) => { const [tab, id] = k.split("\u0001"); (byTab[tab] = byTab[tab] || new Set()).add(id); });
-    const backups = {};
-    try {
-      for (const tab of Object.keys(byTab)) {
-        backups[tab] = (S.own[tab] || []).slice();
-        S.own[tab] = backups[tab].filter((t) => !byTab[tab].has(t.id));
-        if (S.editing && S.editing.tab === tab && byTab[tab].has(S.editing.id)) cancelEdit();
-        await putOwn(tab);
-      }
-      S.selected.clear();
-      msg(`${n}건을 삭제했습니다.`);
-    } catch (e) {
-      Object.assign(S.own, backups);
-      msg("삭제하지 못했습니다. " + e.message, true);
-    }
-    renderList();
-    updateDayMeter();
-  }
 
   // ---------- 집계 공통 ----------
   async function dataset() {
@@ -981,7 +1084,7 @@
     $("btnSettingsClose").onclick = () => { modal.style.display = "none"; };
     $("btnSettingsSave").onclick = async () => {
       try {
-        await api("/api/settings", { method: "PUT", body: { month: sel.value, settings: draft } });
+        await api("/api/settings", { method: "PUT", body: { month: settingsKey(sel.value), settings: draft } });
         S.settingsCache[sel.value] = draft;
         modal.style.display = "none";
         renderAll();
@@ -1016,7 +1119,8 @@
         if (renames.length) await applyRenames(renames);
         modal.style.display = "none";
         assigneeDraft = null;
-        fillWorkerList();
+        fillWorker();
+        if (S.view === "list") renderList();
         renderAll();
       } catch (e) {
         alert("담당자 설정을 저장하지 못했습니다.\n" + e.message);
@@ -1224,55 +1328,6 @@
     try { return new TextDecoder("utf-8", { fatal: true }).decode(buf).replace(/^﻿/, ""); }
     catch (e) { return new TextDecoder("euc-kr").decode(buf); }
   }
-  async function handleCsvFile(e) {
-    const file = e.target.files && e.target.files[0];
-    e.target.value = "";
-    if (!file) return;
-    const rows = parseCsv(await readCsvText(file));
-    if (rows.length < 2) { alert("데이터 행이 없습니다. 헤더 아래에 업무를 입력한 뒤 다시 올려주세요."); return; }
-    const headers = rows[0].map((h) => (h || "").trim().replace(/\s+/g, ""));
-    const idx = {};
-    CSV_HEADERS.forEach((h, i) => { const at = headers.indexOf(h.replace(/\s+/g, "")); if (at >= 0) idx[CSV_KEYS[i]] = at; });
-    if (idx.title == null || idx.date == null) {
-      alert("양식의 헤더를 인식하지 못했습니다.\n‘양식 받기’로 받은 CSV의 첫 줄(헤더)을 그대로 두고 올려주세요.\n(필수: 업무명, 처리일)");
-      return;
-    }
-    const imported = [], skipped = [];
-    const now = new Date().toISOString();
-    rows.slice(1).forEach((r, i) => {
-      const v = (k) => (idx[k] == null ? "" : String(r[idx[k]] ?? "").trim().replace(/^="(.*)"$/, "$1"));
-      const line = i + 2;
-      const title = v("title");
-      if (!title || title.startsWith("(예시)")) { if (title) skipped.push(`${line}행: 예시 행`); else skipped.push(`${line}행: 업무명 없음`); return; }
-      const date = parseDate(v("date"));
-      if (!date) { skipped.push(`${line}행: 처리일 형식 오류`); return; }
-      const month = parseMonth(v("month")) || date.slice(0, 7);
-      const minRaw = v("minutes").replace(/[^\d]/g, "");
-      if (!minRaw || minRaw.length > 4) { skipped.push(`${line}행: 처리소요시간 오류`); return; }
-      imported.push({
-        id: uid(), month, title: title.slice(0, TITLE_MAX), worker: v("worker") || (S.user && S.user.name) || "",
-        date, minutes: parseInt(minRaw, 10), count: 1, major: v("major"), minor: v("minor"), sub: v("sub"),
-        createdAt: now, updatedAt: now
-      });
-    });
-    if (!imported.length) { alert("올릴 수 있는 행이 없습니다.\n\n" + skipped.slice(0, 10).join("\n")); return; }
-    const cur = S.own[S.tab] || [];
-    const replace = cur.length ? confirm(
-      `CSV에서 ${imported.length}건을 읽었습니다. (저장 위치: ${S.tab})\n\n` +
-      `[확인] 이 탭의 내 업무 ${cur.length}건을 모두 지우고 교체\n[취소] 기존 목록 뒤에 추가`) : false;
-    const backup = cur.slice();
-    S.own[S.tab] = replace ? imported : [...cur, ...imported];
-    try {
-      await putOwn(S.tab);
-      S.search = null;
-      renderTabs(); buildPeriodSelects(); renderList(); updateDayMeter();
-      alert(`${imported.length}건을 올렸습니다.${skipped.length ? `\n\n건너뛴 행 ${skipped.length}개:\n` + skipped.slice(0, 10).join("\n") + (skipped.length > 10 ? "\n…" : "") : ""}`);
-    } catch (err) {
-      S.own[S.tab] = backup;
-      alert("업로드 내용을 저장하지 못했습니다.\n" + err.message);
-    }
-  }
-
   // ---------- 엑셀 다운로드 ----------
   function openExport(mode) {
     if (mode === "admin" && !S.isAdmin) return;
@@ -1300,7 +1355,7 @@
         if (typeof XlsxLite === "undefined") throw new Error("엑셀 도구(xlsx.js)를 불러오지 못했습니다.");
         const who = mode === "admin" ? "전체" : ((S.user && S.user.name) || "내업무");
         const def = buildWorkbook(list, { start: a, end: b, admin: mode === "admin", who });
-        download(XlsxLite.build(def), `업무상세내역_${who}_${a.replace(".", "")}-${b.replace(".", "")}_${stamp()}.xlsx`);
+        download(XlsxLite.build(def), `업무상세내역_${who}_${a}-${b}_${stamp()}.xlsx`);
         modal.style.display = "none";
       } catch (e) {
         $("exportMsg").textContent = "다운로드하지 못했습니다. " + e.message;
@@ -1390,34 +1445,95 @@
     return { sheets: [sheet1, sheet2] };
   }
 
+  async function handleCsvFile(e) {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    const rows = parseCsv(await readCsvText(file));
+    if (rows.length < 2) { alert("데이터 행이 없습니다. 헤더 아래에 업무를 입력한 뒤 다시 올려주세요."); return; }
+    const headers = rows[0].map((h) => (h || "").trim().replace(/\s+/g, ""));
+    const idx = {};
+    CSV_HEADERS.forEach((h, i) => { const at = headers.indexOf(h.replace(/\s+/g, "")); if (at >= 0) idx[CSV_KEYS[i]] = at; });
+    if (idx.title == null || idx.date == null) {
+      alert("양식의 헤더를 인식하지 못했습니다.\n‘양식 받기’로 받은 CSV의 첫 줄(헤더)을 그대로 두고 올려주세요.\n(필수: 업무명, 처리일)");
+      return;
+    }
+    const imported = [], skipped = [];
+    const now = new Date().toISOString();
+    rows.slice(1).forEach((r, i) => {
+      const v = (k) => (idx[k] == null ? "" : String(r[idx[k]] ?? "").trim().replace(/^="(.*)"$/, "$1"));
+      const line = i + 2;
+      const title = v("title");
+      if (!title) { skipped.push(`${line}행: 업무명 없음`); return; }
+      if (title.startsWith("(예시)")) { skipped.push(`${line}행: 예시 행`); return; }
+      const date = parseDate(v("date"));
+      if (!date) { skipped.push(`${line}행: 처리일 형식 오류`); return; }
+      const month = parseMonth(v("month")) || monthOfDate(date);
+      const minRaw = v("minutes").replace(/[^\d]/g, "");
+      if (!minRaw || minRaw.length > 4) { skipped.push(`${line}행: 처리소요시간 오류`); return; }
+      imported.push({
+        id: uid(), month, title: title.slice(0, TITLE_MAX), worker: v("worker") || (S.user && S.user.name) || "",
+        date, minutes: parseInt(minRaw, 10), count: 1, major: v("major"), minor: v("minor"), sub: v("sub"),
+        createdAt: now, updatedAt: now
+      });
+    });
+    if (!imported.length) { alert("올릴 수 있는 행이 없습니다.\n\n" + skipped.slice(0, 10).join("\n")); return; }
+
+    // 월별로 나눠 저장
+    const byMonth = {};
+    imported.forEach((t) => { (byMonth[t.month] = byMonth[t.month] || []).push(t); });
+    const months = Object.keys(byMonth).sort();
+    const existing = months.reduce((a, m) => a + (S.own[m] || []).length, 0);
+    const replace = existing ? confirm(
+      `CSV에서 ${imported.length}건을 읽었습니다. (월: ${months.join(", ")})\n\n` +
+      `[확인] 해당 월의 내 업무 ${existing}건을 모두 지우고 교체\n[취소] 기존 목록 뒤에 추가`) : false;
+    const backups = {};
+    try {
+      for (const m of months) {
+        backups[m] = (S.own[m] || []).slice();
+        S.own[m] = replace ? byMonth[m] : backups[m].concat(byMonth[m]);
+        await putOwn(m);
+      }
+      S.search = null;
+      S.viewMonth = months[months.length - 1];
+      buildPeriodSelects(); renderAll();
+      alert(`${imported.length}건을 올렸습니다.${skipped.length ? `\n\n건너뛴 행 ${skipped.length}개:\n` + skipped.slice(0, 10).join("\n") + (skipped.length > 10 ? "\n…" : "") : ""}`);
+    } catch (err) {
+      Object.assign(S.own, backups);
+      alert("업로드 내용을 저장하지 못했습니다.\n" + err.message);
+    }
+  }
+
   // ---------- 연결 확인 ----------
   async function checkConnection() {
     const btn = $("btnHealth");
     btn.disabled = true;
     const lines = [];
+    const m = S.viewMonth || nowMonth();
     try {
       const h = await fetch(API_BASE + "/api/health", { cache: "no-store" });
       lines.push(`서버 연결: ${h.ok ? "정상" : "오류 " + h.status}`);
     } catch (e) { lines.push("서버 연결: 실패 (" + e.message + ")"); }
     try {
-      const r = await api(`/api/tasks?month=${encodeURIComponent(S.tab)}`);
-      lines.push(`읽기(GET): 정상 — ${S.tab} ${(r.tasks || []).length}건`);
+      const r = await api(`/api/tasks?month=${encodeURIComponent(m)}`);
+      lines.push(`읽기(GET): 정상 — ${m} ${(r.tasks || []).length}건`);
     } catch (e) { lines.push("읽기(GET): 실패 — " + e.message); }
-    try {
-      await putOwn(S.tab);
-      lines.push("쓰기(PUT): 정상");
-    } catch (e) { lines.push("쓰기(PUT): 실패 — " + e.message); }
+    if ((S.own[m] || []).length) {
+      try { await putOwn(m); lines.push("쓰기(PUT): 정상"); }
+      catch (e) { lines.push("쓰기(PUT): 실패 — " + e.message); }
+    } else lines.push("쓰기(PUT): 이 월에 데이터가 없어 확인을 건너뜀");
     btn.disabled = false;
     alert(lines.join("\n"));
   }
 
   // ---------- 이벤트 ----------
   function bindControls() {
-    $("brandHome").onclick = () => setView("entry");
-    $("btnEntryView").onclick = () => setView("entry");
+    $("brandHome").onclick = () => switchMonth(nowMonth());
+    $("btnListView").onclick = () => setView("list");
     $("btnSummaryView").onclick = () => setView("summary");
     $("btnDashboardView").onclick = () => setView("dashboard");
     $("btnSearch").onclick = runSearch;
+    $("thDate").onclick = () => { S.sortAsc = !S.sortAsc; renderList(); };
     $("btnSummaryRefresh").onclick = async () => { S.all = null; S.settingsCache = {}; if (!S.isAdmin) await loadOwnAll().catch(() => {}); renderSummary(); };
     $("btnDashRefresh").onclick = () => { S.all = null; S.settingsCache = {}; renderDashboard(); };
     $("btnImport").onclick = () => $("csvFileInput").click();
@@ -1427,11 +1543,11 @@
     $("btnAdminExport").onclick = () => openExport("admin");
     $("btnCategorySettings").onclick = openCategorySettings;
     $("btnSettings").onclick = openSettings;
+    $("btnAssigneeSettings").onclick = openAssigneeSettings;
     $("btnHealth").onclick = checkConnection;
 
     $("btnEntrySave").onclick = saveEntry;
     $("btnEntryReset").onclick = () => { resetForm(false); msg(""); };
-    $("btnEntryCancel").onclick = cancelEdit;
     $("btnDeleteSelected").onclick = deleteSelected;
     $("chkAll").onchange = (e) => toggleAll(e.target.checked);
     $("btnFavToggle").onclick = toggleFav;
@@ -1448,21 +1564,21 @@
     };
     $("fMonth").oninput = () => {
       const el = $("fMonth");
-      const d = el.value.replace(/[^\d]/g, "");
-      if (/^\d{6}$/.test(d) && !el.value.includes(".")) el.value = `${d.slice(0, 4)}.${d.slice(4)}`;
+      const clean = el.value.replace(/[^\d]/g, "").slice(0, 6);
+      if (clean !== el.value) el.value = clean;
+      S.monthTouched = true;
     };
-    $("fMonth").onblur = () => { const m = parseMonth($("fMonth").value); if (m) $("fMonth").value = m; };
+    const dateChanged = () => { syncMonthFromDate(); updateDayMeter(); };
     $("fDate").oninput = () => {
       const el = $("fDate");
       const d = el.value.replace(/[^\d]/g, "");
       if (/^\d{8}$/.test(d) && !/[.\-/]/.test(el.value)) el.value = `${d.slice(0, 4)}.${d.slice(4, 6)}.${d.slice(6)}`;
-      updateDayMeter();
+      if (parseDate(el.value)) dateChanged(); else updateDayMeter();
     };
     $("fDate").onblur = () => {
       const d = parseDate($("fDate").value);
       $("fDate").classList.toggle("is-invalid", !!$("fDate").value && !d);
-      if (d) $("fDate").value = d;
-      updateDayMeter();
+      if (d) { $("fDate").value = d; dateChanged(); }
     };
     const picker = $("fDatePicker");
     $("fDateBtn").onclick = () => {
@@ -1471,17 +1587,16 @@
       if (picker.showPicker) { try { picker.showPicker(); return; } catch (e) { /* 아래로 */ } }
       picker.focus(); picker.click();
     };
-    picker.onchange = () => { if (picker.value) { $("fDate").value = isoToDot(picker.value); $("fDate").classList.remove("is-invalid"); updateDayMeter(); } };
+    picker.onchange = () => { if (picker.value) { $("fDate").value = isoToDot(picker.value); $("fDate").classList.remove("is-invalid"); dateChanged(); } };
 
-    // Enter 로 저장, Esc 로 수정 취소
-    ["fMonth", "fTitle", "fWorker", "fDate", "fMinutes"].forEach((id) => {
+    // Enter 로 저장
+    ["fMonth", "fTitle", "fDate", "fMinutes"].forEach((id) => {
       $(id).addEventListener("keydown", (e) => {
         if (e.key === "Enter" && !e.isComposing) { e.preventDefault(); saveEntry(); }
-        if (e.key === "Escape" && S.editing) cancelEdit();
       });
     });
     // 모달 바깥 클릭 시 닫기 (확인창 제외)
-    ["tabModal", "exportModal", "settingsModal"].forEach((id) => {
+    ["exportModal", "settingsModal"].forEach((id) => {
       $(id).addEventListener("mousedown", (e) => { if (e.target.id === id) $(id).style.display = "none"; });
     });
   }

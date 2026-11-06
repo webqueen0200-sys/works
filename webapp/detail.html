@@ -8,7 +8,7 @@
 <script src="auth.js?v=20261029c"></script>
 <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css" />
 <link rel="stylesheet" href="styles.css?v=20261029b" />
-<link rel="stylesheet" href="detail.css?v=20261106a" />
+<link rel="stylesheet" href="detail.css?v=20261106b" />
 </head>
 <body>
 
@@ -20,7 +20,7 @@
 </nav>
 
 <header class="app-header">
-  <div class="brand" id="brandHome" title="업무 입력 화면으로 이동">
+  <div class="brand" id="brandHome" title="업무 목록으로 이동">
     <span class="brand-mark">▤</span>
     <div class="brand-text">
       <h1>업무상세내역</h1>
@@ -32,108 +32,99 @@
   </div>
 </header>
 
-<nav id="monthTabs" class="month-tabs"></nav>
-
-<div class="toolbar">
-  <div class="toolbar-left">
-    <button id="btnEntryView" class="tab-btn active">업무 입력</button>
-    <button id="btnSummaryView" class="tab-btn">요약</button>
-    <button id="btnDashboardView" class="tab-btn admin-only">대시보드</button>
-  </div>
-  <div class="toolbar-right">
-    <div class="period-box" title="조회 기간 (시작월 ~ 종료월)">
-      <span class="period-label">조회</span>
-      <select id="periodStart" class="status-filter"></select>
-      <span class="period-sep">~</span>
-      <select id="periodEnd" class="status-filter"></select>
-      <button id="btnSearch" class="btn btn-primary btn-compact">조회</button>
-    </div>
-    <span class="tool-sep"></span>
-    <button id="btnImport" class="btn btn-ghost">CSV 업로드</button>
-    <button id="btnCsvTemplate" class="btn btn-ghost">양식 받기</button>
-    <button id="btnExport" class="btn btn-ghost">엑셀 다운로드</button>
-    <button id="btnAdminExport" class="btn btn-ghost admin-only">관리자 엑셀 다운로드</button>
-    <button id="btnCategorySettings" class="btn btn-ghost admin-only">분류 설정</button>
-    <button id="btnSettings" class="btn btn-ghost admin-only">기준 설정</button>
-    <input id="csvFileInput" type="file" accept=".csv,text/csv" style="display:none" />
-  </div>
-</div>
+<!-- 관리자 메뉴 -->
+<nav class="month-tabs admin-bar admin-only" aria-label="관리자 메뉴">
+  <span class="month-tabs-spacer"></span>
+  <button id="btnAdminExport" class="month-tab assignee-settings-btn">관리자 엑셀 다운로드</button>
+  <button id="btnCategorySettings" class="month-tab assignee-settings-btn">분류 설정</button>
+  <button id="btnSettings" class="month-tab assignee-settings-btn">기준 설정</button>
+  <button id="btnAssigneeSettings" class="month-tab assignee-settings-btn">담당자 설정</button>
+</nav>
 
 <main>
   <!-- ===== 업무 입력 ===== -->
-  <section id="entryPanel" class="panel">
-    <div class="entry-card" id="entryCard">
-      <div class="entry-head">
-        <h3 id="entryTitle">업무 입력</h3>
-        <span id="entryEditBadge" class="edit-badge" style="display:none">수정 중</span>
-        <span class="entry-tab" id="entryTabLabel"></span>
-      </div>
-
-      <div class="entry-grid">
-        <label class="ef ef-month">
-          <span>월</span>
-          <input id="fMonth" type="text" inputmode="numeric" maxlength="7" placeholder="YYYY.MM" />
-        </label>
-        <label class="ef ef-worker">
-          <span>완료처리자</span>
-          <input id="fWorker" type="text" list="workerList" maxlength="40" />
-          <datalist id="workerList"></datalist>
-        </label>
-        <div class="ef ef-date">
-          <span>처리일</span>
-          <div class="date-wrap">
-            <input id="fDate" type="text" inputmode="numeric" maxlength="10" placeholder="YYYY.MM.DD" />
-            <button type="button" id="fDateBtn" class="date-btn" title="달력에서 선택" aria-label="달력에서 선택">📅</button>
-            <input id="fDatePicker" type="date" class="date-picker-hidden" tabindex="-1" aria-hidden="true" />
-          </div>
-        </div>
-        <div class="ef ef-min">
-          <span>처리소요시간(분)</span>
-          <input id="fMinutes" type="text" inputmode="numeric" maxlength="4" placeholder="0" />
-          <div class="day-meter" id="dayMeter" title="처리일 기준, 같은 날짜에 입력한 처리소요시간 합계">
-            <div class="day-meter-track"><div class="day-meter-fill" id="dayMeterFill"></div></div>
-            <span class="day-meter-text" id="dayMeterText">0분/480분</span>
-          </div>
-        </div>
-        <label class="ef ef-count">
-          <span>처리건수</span>
-          <input id="fCount" type="text" value="1" readonly tabindex="-1" />
-        </label>
-
-        <label class="ef ef-title">
-          <span>업무명 <em id="titleCounter" class="counter">0/300</em></span>
-          <input id="fTitle" type="text" maxlength="300" placeholder="처리한 업무를 입력하세요" />
-        </label>
-      </div>
-
-      <div class="cat-block">
-        <div class="fav-row">
-          <span class="fav-label">★ 즐겨찾기</span>
-          <div id="favChips" class="fav-chips"></div>
-        </div>
-        <div class="cat-row">
-          <label class="ef"><span>대분류</span><select id="fMajor"></select></label>
-          <label class="ef"><span>중분류</span><select id="fMinor"></select></label>
-          <label class="ef ef-sub"><span>소분류</span><select id="fSub"></select></label>
-          <button type="button" id="btnFavToggle" class="fav-toggle" title="선택한 분류를 즐겨찾기에 추가">☆ 즐겨찾기 추가</button>
-        </div>
-      </div>
-
-      <div class="entry-actions">
-        <span id="entryMsg" class="entry-msg"></span>
-        <button type="button" id="btnEntryCancel" class="btn btn-ghost" style="display:none">수정 취소</button>
-        <button type="button" id="btnEntryReset" class="btn btn-ghost">초기화</button>
-        <button type="button" id="btnEntrySave" class="btn btn-primary">저장</button>
+  <section class="entry-card" id="entryCard">
+    <div class="entry-head">
+      <h3>업무 입력</h3>
+      <div class="day-meter" id="dayMeter" title="처리일 기준, 같은 날짜에 입력한 처리소요시간 합계">
+        <span class="day-meter-label">하루 합계</span>
+        <div class="day-meter-track"><div class="day-meter-fill" id="dayMeterFill"></div></div>
+        <span class="day-meter-text" id="dayMeterText">0분/480분</span>
       </div>
     </div>
 
+    <div class="entry-row">
+      <div class="ef ef-date">
+        <span>처리일</span>
+        <div class="date-wrap">
+          <input id="fDate" type="text" inputmode="numeric" maxlength="10" placeholder="YYYY.MM.DD" />
+          <button type="button" id="fDateBtn" class="date-btn" title="달력에서 선택" aria-label="달력에서 선택">📅</button>
+          <input id="fDatePicker" type="date" class="date-picker-hidden" tabindex="-1" aria-hidden="true" />
+        </div>
+      </div>
+      <label class="ef ef-min">
+        <span>소요시간(분)</span>
+        <input id="fMinutes" type="text" inputmode="numeric" maxlength="4" placeholder="0" />
+      </label>
+      <label class="ef ef-title">
+        <span>업무명 <em id="titleCounter" class="counter">0/300</em></span>
+        <input id="fTitle" type="text" maxlength="300" placeholder="처리한 업무를 입력하세요" />
+      </label>
+    </div>
+
+    <div class="entry-row">
+      <label class="ef ef-major"><span>대분류</span><select id="fMajor"></select></label>
+      <label class="ef ef-minor"><span>중분류</span><select id="fMinor"></select></label>
+      <label class="ef ef-sub"><span>소분류</span><select id="fSub"></select></label>
+      <button type="button" id="btnFavToggle" class="fav-toggle" title="선택한 분류를 즐겨찾기에 추가">☆</button>
+    </div>
+    <div class="fav-row">
+      <span class="fav-label">★ 즐겨찾기</span>
+      <div id="favChips" class="fav-chips"></div>
+    </div>
+
+    <div class="entry-foot">
+      <label class="ef-inline"><span>월</span><input id="fMonth" type="text" inputmode="numeric" maxlength="6" placeholder="YYYYMM" class="in-month" /></label>
+      <label class="ef-inline"><span>완료처리자</span><select id="fWorker" class="in-worker"></select></label>
+      <label class="ef-inline"><span>처리건수</span><input id="fCount" type="text" value="1" readonly tabindex="-1" class="in-count" /></label>
+      <span id="entryMsg" class="entry-msg"></span>
+      <button type="button" id="btnEntryReset" class="btn btn-ghost">초기화</button>
+      <button type="button" id="btnEntrySave" class="btn btn-primary">저장</button>
+    </div>
+  </section>
+
+  <!-- ===== 목록 · 요약 · 대시보드 ===== -->
+  <div class="list-toolbar">
+    <div class="toolbar-left">
+      <button id="btnListView" class="tab-btn active">업무 목록</button>
+      <button id="btnSummaryView" class="tab-btn">요약</button>
+      <button id="btnDashboardView" class="tab-btn admin-only">대시보드</button>
+    </div>
+    <div class="toolbar-right">
+      <div class="period-box" title="조회 기간 (시작월 ~ 종료월)">
+        <span class="period-label">조회</span>
+        <select id="periodStart" class="status-filter"></select>
+        <span class="period-sep">~</span>
+        <select id="periodEnd" class="status-filter"></select>
+        <button id="btnSearch" class="btn btn-primary btn-compact">조회</button>
+      </div>
+      <span class="tool-sep"></span>
+      <button id="btnImport" class="btn btn-ghost btn-compact">CSV 업로드</button>
+      <button id="btnCsvTemplate" class="btn btn-ghost btn-compact">양식 받기</button>
+      <button id="btnExport" class="btn btn-ghost btn-compact">엑셀 다운로드</button>
+      <input id="csvFileInput" type="file" accept=".csv,text/csv" style="display:none" />
+    </div>
+  </div>
+
+  <section id="listPanel" class="panel">
     <div class="list-card">
+      <nav id="monthTabs" class="list-month-tabs" aria-label="월 선택"></nav>
       <div class="list-head">
         <h3 id="listTitle">업무 목록</h3>
         <span id="listSearchChip" class="search-chip" style="display:none"></span>
         <span id="listCount" class="row-count"></span>
         <span class="month-tabs-spacer"></span>
-        <button type="button" id="btnDeleteSelected" class="btn btn-ghost btn-danger" disabled>선택 삭제</button>
+        <button type="button" id="btnDeleteSelected" class="btn btn-ghost btn-danger btn-compact" disabled>선택 삭제</button>
       </div>
       <div class="table-scroll">
         <table id="listTable" class="list-table">
@@ -141,30 +132,29 @@
             <tr>
               <th class="c-chk"><input type="checkbox" id="chkAll" title="전체 선택" /></th>
               <th class="c-no">NO</th>
-              <th class="c-tab search-only">탭</th>
-              <th class="c-month">월</th>
+              <th class="c-date sortable" id="thDate" title="클릭하면 처리일 순서를 바꿉니다">처리일 <span id="dateSortMark">▼</span></th>
+              <th class="c-min">소요시간(분)</th>
               <th class="c-title">업무명</th>
-              <th class="c-worker">완료처리자</th>
-              <th class="c-date">처리일</th>
-              <th class="c-num">처리소요시간(분)</th>
-              <th class="c-num">처리건수</th>
               <th>대분류</th>
               <th>중분류</th>
               <th>소분류</th>
+              <th class="c-month">월</th>
+              <th class="c-worker">완료처리자</th>
+              <th class="c-cnt">건수</th>
               <th class="c-act"></th>
             </tr>
           </thead>
           <tbody id="listBody"></tbody>
         </table>
       </div>
+      <p class="list-hint">수정: 행의 ‘수정’ 버튼 또는 더블클릭 → 목록에서 바로 고치고 Enter 또는 ‘저장’ (Esc 취소)</p>
     </div>
   </section>
 
-  <!-- ===== 요약 ===== -->
   <section id="summaryPanel" class="panel" style="display:none">
     <div class="dash-header">
       <h2 id="summaryTitle">요약</h2>
-      <button id="btnSummaryRefresh" class="btn btn-ghost">새로고침</button>
+      <button id="btnSummaryRefresh" class="btn btn-ghost btn-compact">새로고침</button>
     </div>
     <div class="summary-grid">
       <div id="sumWorkerCard" class="summary-card wide"></div>
@@ -172,11 +162,10 @@
     </div>
   </section>
 
-  <!-- ===== 대시보드 (관리자) ===== -->
   <section id="dashboardPanel" class="panel" style="display:none">
     <div class="dash-header">
       <h2 id="dashTitle">대시보드</h2>
-      <button id="btnDashRefresh" class="btn btn-ghost">새로고침</button>
+      <button id="btnDashRefresh" class="btn btn-ghost btn-compact">새로고침</button>
     </div>
     <div id="dashKpis" class="dash-kpis"></div>
     <div class="summary-grid">
@@ -186,20 +175,6 @@
     </div>
   </section>
 </main>
-
-<!-- 새 월 시트 -->
-<div id="tabModal" class="modal">
-  <div class="modal-box">
-    <h2>새 월 시트</h2>
-    <p class="modal-desc">탭 이름을 입력하고 저장하면 새 탭이 만들어집니다.</p>
-    <input id="tabNameInput" class="modal-input" type="text" maxlength="30" placeholder="세부업무_11월" />
-    <p id="tabModalMsg" class="modal-err"></p>
-    <div class="modal-actions">
-      <button id="btnTabClose" class="btn btn-ghost">취소</button>
-      <button id="btnTabSave" class="btn btn-primary">저장</button>
-    </div>
-  </div>
-</div>
 
 <!-- 삭제 확인 (공통) -->
 <div id="confirmModal" class="modal">
@@ -270,6 +245,6 @@
 
 <script src="config.js?v=20261029b"></script>
 <script src="xlsx.js?v=20261029b"></script>
-<script src="detail.js?v=20261106a"></script>
+<script src="detail.js?v=20261106b"></script>
 </body>
 </html>
