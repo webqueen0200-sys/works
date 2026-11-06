@@ -8,7 +8,7 @@
 <script src="auth.js?v=20261029c"></script>
 <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css" />
 <link rel="stylesheet" href="styles.css?v=20261029b" />
-<link rel="stylesheet" href="detail.css?v=20261106b" />
+<link rel="stylesheet" href="detail.css?v=20261106d" />
 </head>
 <body>
 
@@ -32,13 +32,16 @@
   </div>
 </header>
 
-<!-- 관리자 메뉴 -->
-<nav class="month-tabs admin-bar admin-only" aria-label="관리자 메뉴">
+<!-- 화면 메뉴 (왼쪽) · 관리자 메뉴 (오른쪽) -->
+<nav class="month-tabs view-bar" aria-label="화면 메뉴">
+  <button id="btnListView" class="month-tab active">업무 목록</button>
+  <button id="btnSummaryView" class="month-tab">요약</button>
+  <button id="btnDashboardView" class="month-tab admin-only">대시보드</button>
   <span class="month-tabs-spacer"></span>
-  <button id="btnAdminExport" class="month-tab assignee-settings-btn">관리자 엑셀 다운로드</button>
-  <button id="btnCategorySettings" class="month-tab assignee-settings-btn">분류 설정</button>
-  <button id="btnSettings" class="month-tab assignee-settings-btn">기준 설정</button>
-  <button id="btnAssigneeSettings" class="month-tab assignee-settings-btn">담당자 설정</button>
+  <button id="btnAdminExport" class="month-tab assignee-settings-btn admin-only">관리자 엑셀 다운로드</button>
+  <button id="btnCategorySettings" class="month-tab assignee-settings-btn admin-only">분류 설정</button>
+  <button id="btnSettings" class="month-tab assignee-settings-btn admin-only">기준 설정</button>
+  <button id="btnAssigneeSettings" class="month-tab assignee-settings-btn admin-only">담당자 설정</button>
 </nav>
 
 <main>
@@ -93,13 +96,8 @@
     </div>
   </section>
 
-  <!-- ===== 목록 · 요약 · 대시보드 ===== -->
+  <!-- ===== 조회 · 파일 도구 ===== -->
   <div class="list-toolbar">
-    <div class="toolbar-left">
-      <button id="btnListView" class="tab-btn active">업무 목록</button>
-      <button id="btnSummaryView" class="tab-btn">요약</button>
-      <button id="btnDashboardView" class="tab-btn admin-only">대시보드</button>
-    </div>
     <div class="toolbar-right">
       <div class="period-box" title="조회 기간 (시작월 ~ 종료월)">
         <span class="period-label">조회</span>
@@ -245,6 +243,6 @@
 
 <script src="config.js?v=20261029b"></script>
 <script src="xlsx.js?v=20261029b"></script>
-<script src="detail.js?v=20261106b"></script>
+<script src="detail.js?v=20261106d"></script>
 </body>
 </html>

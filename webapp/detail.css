@@ -27,7 +27,8 @@
 
 /* 관리자 전용 요소: 로그인 사용자가 관리자일 때만 표시 */
 body:not(.is-admin) .admin-only { display: none !important; }
-.admin-bar { position: static; }
+.view-bar { position: static; }
+.view-bar .month-tab:not(.assignee-settings-btn) { font-size: 15px; padding: 13px 18px; }
 
 /* ---------- 입력 카드 (간결한 3줄 구성) ---------- */
 .entry-card {
@@ -126,7 +127,7 @@ input.is-invalid, select.is-invalid { border-color: #d70015 !important; box-shad
 
 /* ---------- 목록 툴바 ---------- */
 .list-toolbar {
-  display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+  display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap;
   margin-bottom: 12px;
 }
 .list-toolbar .toolbar-right { flex-wrap: wrap; justify-content: flex-end; gap: 8px; }

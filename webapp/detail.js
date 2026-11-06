@@ -362,7 +362,7 @@
     const set = new Set([nowMonth()]);
     if (S.viewMonth) set.add(S.viewMonth);
     Object.entries(S.own).forEach(([m, list]) => { if (list.length) set.add(m); });
-    return [...set].filter(isMonthKey).sort();
+    return [...set].filter(isMonthKey).sort().reverse();   // 최근 월이 왼쪽(앞)에 오도록
   }
   function renderTabs() {
     const wrap = $("monthTabs");
@@ -418,6 +418,7 @@
     if (v === "dashboard" && !S.isAdmin) v = "list";
     S.view = v;
     $("listPanel").style.display = v === "list" ? "" : "none";
+    $("entryCard").style.display = v === "list" ? "" : "none";   // 입력 영역은 업무 목록 화면에서만 표시
     $("summaryPanel").style.display = v === "summary" ? "" : "none";
     $("dashboardPanel").style.display = v === "dashboard" ? "" : "none";
     $("btnListView").classList.toggle("active", v === "list");
